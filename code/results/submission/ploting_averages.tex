@@ -1,0 +1,66 @@
+\documentclass[border=5mm] {standalone}
+\usepackage{pgfplots, pgfplotstable,booktabs}
+\usetikzlibrary{positioning}
+\pgfplotstableread[col sep = comma]{data1.csv}\mydata
+\pgfplotsset{every axis legend/.append style={
+font={\huge}}}
+%data,inputlines,splits,cgrayrec,cgreenrec,cwhiterec
+\pgfplotstablegetrowsof{\mydata}
+\pgfmathsetmacro{\N}{\pgfplotsretval-1}
+% sort table by total score, save in new macro
+\pgfplotstablesort[sort key={inputlines}]\datatable\mydata
+\pgfplotsset{compat=1.7}
+% define some colours
+\definecolor{cinputlines}{RGB}{37,165,203}
+\definecolor{csplits}{RGB}{175,32,67}
+\definecolor{ccgrayrec}{RGB}{128,128,128}
+\definecolor{ccgreenrec}{RGB}{46,139,87}
+\definecolor{ccwhiterec}{RGB}{253,177,26}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+    height=10cm,width=12cm,
+    ybar stacked,
+    bar width=1cm,
+    scaled y ticks=false,
+    %y-axis prop
+    scale only axis,
+    ymin = 0,
+    ylabel near ticks,
+    enlargelimits={abs=4pt},
+    ylabel={\\Number of lines/rectangle},
+    ylabel style={yshift=0.1cm,font=\Large\sffamily},
+    yticklabel style={/pgf/number format/fixed,
+    /pgf/number format/precision=6, font=\large},    
+    %x-axis prop
+    xmin=-0.5,
+    xmax = \N+0.7,
+    axis x line=middle,
+    xticklabels from table={\mydata}{data},
+    xtick=data, % Use as many tick labels as y coordinates
+    x tick label style={yshift=-3pt,rotate=0,anchor=north,font=\sffamily\small},
+    %grid prop
+    grid=both,
+    major grid style={dashed,draw=gray!50,line width=0.1},
+    %legend prop
+    legend style={ row sep=1pt, 
+                    at={(0.02,1)},
+                    anchor=north west,
+                    draw=none,
+                    font=\Large\sffamily}]
+
+\addplot [fill=cinputlines,draw=none] table[ x expr=\coordindex, y=inputlines, col sep=comma] {\mydata}; 
+
+\addplot [fill=csplits,draw=none] table[y expr=\thisrow{splits}, x expr=\coordindex] {\mydata}; 
+
+\addplot [fill=ccgrayrec,draw=none] table[y expr=\thisrow{cgrayrec}, x expr=\coordindex] {\mydata}; 
+
+\addplot [fill=ccgreenrec,draw=none] table[y expr=\thisrow{cgreenrec}, x expr=\coordindex] {\mydata}; 
+
+\addplot [fill=ccwhiterec,draw=none] table[y expr=\thisrow{cwhiterec}, x expr=\coordindex] {\mydata}; 
+%\legend{\strut Input-Lines, \strut Split-Lines, \strut Gray, \strut Green}
+\legend{Input-Lines,Split-Lines,Gray,Green, Clear/White}
+\end{axis}
+\end{tikzpicture}
+\end{document}

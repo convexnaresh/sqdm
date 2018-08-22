@@ -1,0 +1,18 @@
+
+
+Data Name: US Counties Boundary Shapefiles
+URL:http://www2.census.gov/geo/tiger/GENZ2015/shp/cb_2015_us_county_500k.zip
+Data Size(Mb) = 119
+
+Data Name: Mississippi State Counties Shape files
+URL: ftp://www.maris.state.ms.us/statewide/mstm/av/stco.zip
+Data Size(Mb):1.9
+
+Data name: US States Boundary Shapefiles
+URL: http://www2.census.gov/geo/tiger/GENZ2015/shp/cb_2015_us_state_500k.zip
+Data Size(Mb): 14.0
+
+Data Name: US congressional district boundary Shapefile
+URL:http://www2.census.gov/geo/tiger/GENZ2015/shp/cb_2015_us_cd114_500k.zip
+Data Size(Mb): 11
+
