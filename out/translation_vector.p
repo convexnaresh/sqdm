@@ -1,0 +1,25 @@
+(dp0
+S'name'
+p1
+S'world mercator'
+p2
+sS'epsg'
+p3
+I3395
+sS'xmax'
+p4
+F20037508.3428
+sS'xoff'
+p5
+F-20037508.3428
+sS'yoff'
+p6
+F-15496570.7397
+sS'unit'
+p7
+S'meter'
+p8
+sS'ymax'
+p9
+F-15496570.7397
+s.
