@@ -10,7 +10,6 @@ class St:
         When ever an entry splited by an insertion, two hashes are generated at positions (2*x,y+1) and (2*x+1,y+1).
         The oritinal hash is updated by single hash of these two hashes.
         '''
-        
         self.key = key
         self.nkey = nkey
         self.val = val
