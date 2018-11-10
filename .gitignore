@@ -1,0 +1,13 @@
+*.com
+*.pyc
+*.o
+*.so
+*.7z
+*.dmg
+*.gz
+*.tar
+*.zip
+*.log
+*.sqlite
+*.Trashes
+*Untitled*.*
