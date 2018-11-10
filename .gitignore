@@ -12,3 +12,5 @@
 *.Trashes
 *Untitled*.*
 *.shp
+*.check_points
+*/code/.ipynb_checkpoints
