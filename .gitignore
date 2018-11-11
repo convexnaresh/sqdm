@@ -14,3 +14,4 @@
 *.shp
 *.check_points
 */code/.ipynb_checkpoints
+*/tmp/*.*
