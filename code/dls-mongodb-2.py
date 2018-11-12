@@ -257,7 +257,7 @@ class DLS:
             # [cid,key] = self.get(self.ID(1,cid,key))
             [cid, key] = self.get(cid)
 
-    def InsertKeyBalanced(cid, sk, k, kb):
+    def InsertKeyBalanced(self,cid, sk, k, kb):
         import copy
         # ks is the key that is split
         # k is the inserted key
@@ -300,7 +300,7 @@ class DLS:
         [p_cid, p_key] = self.get(cid);
         if p_cid != 0:
             self.Recursive(p_cid, p_key, old, newnew);
-    def BalanceTree(cid, k1, k2, k3):
+    def BalanceTree(self,cid, k1, k2, k3):
 
         # k2 and k3 are siblings. we want to move k2 up one level and make k3 a sibling of k1
         # (by pulling k1 down one level)
@@ -344,7 +344,7 @@ class DLS:
         [p_cid, p_key] = self.get(cid);
         if p_cid != 0:
             self.Recursive(p_cid, p_key, old, newnew)
-    def SwapLeaves(cid, k1, k2):  # Swap k1 and k2
+    def SwapLeaves(self,cid, k1, k2):  # Swap k1 and k2
 
         S1 = self.get(self.ID(cid, k1));
         S2 = self.get(self.ID(cid, k2));
@@ -717,9 +717,8 @@ class MapProcess:
         polypts =[]
         if type(segments) == numpy.ndarray:
             segments = segments[0:,0:5].tolist()
-
         n = len(segments)
-        for idx in xrange(0,5):
+        for idx in xrange(n):
             seg = segments[idx]
             x1,y1,x2,y2,isswp = seg[0:5]
             #swapped.
@@ -750,41 +749,84 @@ class MapProcess:
             if tt not in segs:
                 segs.append(tt)
         return segs
-    def splitsegments(self,segs, xun):
+    def splitsegments(self,segs, xun,roundtoint=True):
         import warnings
         '''splits segments in segs where vertical lines pass through x-values in xun.
         that is, at points {(x,0): x in xun}'''
         ttt,n = [],len(segs) # to hold all split lines
         for i in range(n):#len(segs)):  # split lines
+            print segs[i]
             x1 = segs[i][0]
             y1 = segs[i][1]
             x2 = segs[i][2]
             y2 = segs[i][3]
             li = xun.index(x1)
             hi = xun.index(x2)
-            nn = hi - li
-            if nn < 2:  # difference 0/1 means no split
-                ttt.append((x1, y1, x2, y2)+segs[i][4:])
-            else:  # chopping necessary
-                yc = y1
-                for j in range(li, hi):
-                    xc = xun[j]
-                    xn = xun[j + 1]
-                    if xn < x2:
-                        if x2 <0 or x1<0 or y1<0 or y2<0:
-                            print (".<0"), i, j, y2,y1,x2,x1,xn,x1,y1
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("error")
-                            y = float(y2 - y1) / (x2 - x1) * (xn - x1) + y1
-                            yn =  int(round(y))
-                            ttt.append((xc, yc, xn, yn)+segs[i][4:])
-                            yc = yn
-
-                    elif xn == x2:  # last one
-                        ttt.append((xc, yc, xn, y2)+segs[i][4:])
-                # end for
-        # end for
+            if segs[i][4]:
+                ttt+= self.split_xbackward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
+            else:
+                ttt += self.split_xforward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
         return ttt
+
+    def split_xbackward(self,li,hi,x1,y1,x2,y2,seg,xun,roundtoint=True):
+        import warnings
+        ttt=[]
+        nn = hi-li
+        #change isswap value to 0 so that the original order is already maintained.
+        newattr = (0,)+seg[5:]
+        if nn < 2:  # difference 0/1 means no split
+            ttt.append((x1, y1, x2, y2) + seg[4:])
+            print("\t"), (x1, y1, x2, y2) + seg[4:]
+        else:  # chopping necessary
+            yc = y2
+            for j in range(hi,li,-1):
+                xc = xun[j]
+                xn = xun[j - 1]
+                if xn > x1:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("error")
+                        yn = float(y2 - y1) / (x2 - x1) * (xn - x1) + y1
+                        if roundtoint:
+                            yn = int(round(yn))
+                        ttt.append((xc, yc, xn, yn) + seg[4:])
+                        print("\t"), (xc, yc, xn, yn) + seg[4:]
+                        yc = yn
+
+                elif xn == x1:  # last one
+                    ttt.append((xc, yc, xn, y1) + seg[4:])
+                    print("\t"), (xc, yc, xn, y1) + seg[4:]
+            # end for
+        return ttt
+
+    def split_xforward(self,li,hi,x1,y1,x2,y2,seg,xun,roundtoint=True):
+        import warnings
+        ttt=[]
+        nn = hi - li
+        if nn < 2:  # difference 0/1 means no split
+            ttt.append((x1, y1, x2, y2) + seg[4:])
+            print("\t"), (x1, y1, x2, y2) + seg[4:]
+        else:  # chopping necessary
+            yc = y1
+            for j in range(li, hi):
+                xc = xun[j]
+                xn = xun[j + 1]
+                if xn < x2:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("error")
+                        yn = float(y2 - y1) / (x2 - x1) * (xn - x1) + y1
+                        if roundtoint:
+                            yn = int(round(yn))
+                        ttt.append((xc, yc, xn, yn) + seg[4:])
+                        print("\t"), (xc, yc, xn, yn) + seg[4:]
+                        yc = yn
+
+                elif xn == x2:  # last one
+                    ttt.append((xc, yc, xn, y2) + seg[4:])
+                    print("\t"), (xc, yc, xn, y2) + seg[4:]
+            # end for
+        return ttt
+
+
 
     def test_insert_sequence(self,dlsObj,cid,pkey,xun):
 
@@ -986,11 +1028,8 @@ class MapProcess:
         if from_segfile:
             arr = np.loadtxt(infile1)
             segsarr = arr[:, 1:].astype(np.dtype('int64'))  # ignore first column.
-            print segsarr[20203,]
             segs =  tuple(map(tuple, segsarr))
             pp = MP.segments_to_polyseq(segs)
-            print segs[0:10]
-            print pp[0:10]
         else:
             pp = poly1
             pp = [(int(t[0]), int(t[1])) for t in pp]  # convert to integers.
@@ -1099,6 +1138,37 @@ class MapProcess:
 
 class TestMapProcess:
     mp  = MapProcess()
+    def plot_poly_splits_recons(self,pp,splitsegs,reconpoly):
+        import numpy as np, sys
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+
+        fig = plt.figure(1, figsize=(5, 5), dpi=100)
+        ax = fig.add_subplot(111)
+        #ax = fig.add_subplot(112)
+        #original polygon
+        ax.plot([t[0] for t in pp], [t[1] for t in pp], color='#6699cc',alpha=1,linewidth=1.5, solid_capstyle='round', zorder=2)
+        #splits
+        maxy = maxx= -sys.maxint
+        for split in splitsegs:
+            maxy = max(maxy,max([split[1], split[3]]))
+            maxx = max(maxx, max([split[0], split[2]]))
+            #ax.plot([split[0], split[2]], [split[1], split[3]], '--',linewidth=0.5, c='red')
+            ax.plot([split[0], split[2]], [split[1], split[3]], 'x', c='blue') #split-points
+            #ax.plot([split[0], split[0]], [0, 14], '-', c='red', linewidth=2)
+            pass
+        #reconstructed poly
+        pp=reconpoly
+        ax.plot([t[0] for t in pp], [t[1] for t in pp], color='brown',alpha=1, linewidth=1.5, solid_capstyle='round',zorder=2)
+        ax.set_title('split points')
+        major_xticks = np.arange(-1, maxx+1, 1)
+        major_yticks = np.arange(-1, maxy+1, 1)
+        ax.set_xticks(major_xticks)
+        ax.set_yticks(major_yticks)
+        ax.yaxis.grid(which="major", color='blue', linestyle='--', linewidth=0.2)
+        ax.xaxis.grid(which="major", color='blue', linestyle='--', linewidth=0.2)
+        plt.show()
+
     def test_hash_segment(self):
         segment = (3341,41,50,13)
         print(self.mp.hash_segment(segment))
@@ -1154,28 +1224,42 @@ class TestMapProcess:
         leaf_nodes = dlsObj.GetTopLevelStructures()
 
     def test_segments_to_polyseq(self):
+        import time
         poly2 = [(11,9),(10,8.5), (9.5,8),(9,7),(8,7.5),(6,8),(4,9),(7,6), (6,5),(7,4),(9,5),(8,3),(12,1),(14,2),(15,1),(16,2),(17,4),(15,6),
                  (14,4),(11,5),(13,7),(11,9)]
 
-        segs = self.mp.polysegments(poly2)
-        segs = self.test_load_segmentstxt()
-        print segs[0:4,0:]
-        print("-----"),type(segs)
-        pts = self.mp.segments_to_polyseq(segs)
-        print pts
-        print len(pts)
+        pp = poly2
+        pp = [(int(t[0]), int(t[1])) for t in pp]  # convert to integers.
+        segs = self.mp.polysegments(pp)  # collection of tuple (x1,y1,x2,y2)
+        #tag each segments:
+        segs = [t+('A','B','s') for t in segs]
 
+        xlist = [[t[0], t[2]] for t in segs]
+        xlist = [x for sublist in xlist for x in sublist]
+        xun = sorted(list(set(xlist)))
+        print("xmax"), max(xun),min(xun)
+        t0 = time.time()
+        splitsegs = self.mp.splitsegments(segs, xun,roundtoint=False)  # to hold all split lines
+
+        print("splits:")
+        for sp in splitsegs:
+            print sp
+        reconstpolypts = self.mp.segments_to_polyseq(splitsegs)
+        print("completed segments_to_polyseq:")
+        #plot original polygon, segment-from-original polygon, splits,re-constructed-polyygon
+        self.plot_poly_splits_recons(pp,splitsegs,reconstpolypts)
 
     def test_load_segmentstxt(self):
+        import numpy as np
         home ="D:/workspace/sqdm-repo/sqdm/out/tmp"
         infile1 = home+"/usa.prj.lbl.txn.int.txt"
         infile2 =home +"/states.prj.lbl.txn.int.txt"
-        segsarr = self.mp.load_segmentsfromtxt(infile1)
-        print(".,,,,,,,,,,,,,,,,,."),segsarr[20203]
-        print("............................")
+        arr = np.loadtxt(infile1)
+        segsarr = arr[:, 1:].astype(np.dtype('int64'))  # ignore first column.
+
         #plot
         #self.plot_boundary(segs)
-        return segsarr
+        return segsarr.tolist()
 
     def plot_boundary(self,segments):
         import numpy as np, sys
@@ -1241,9 +1325,9 @@ class TestMapProcess:
         self.test_segments_to_polyseq()
 
 if __name__ == "__main__":
-    MapProcess().test_create_dls_for_slabbed_polygon()
-    #tmp = TestMapProcess()
-    #tmp.run_tests()
+    #MapProcess().test_create_dls_for_slabbed_polygon()
+    tmp = TestMapProcess()
+    tmp.run_tests()
 
     '''
     1) Given a series of points in a polygon, develop an algorithm to compute area of 
