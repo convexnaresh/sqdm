@@ -256,6 +256,7 @@ class DLS:
             self.UpdateHashes(cid, S.x, S.y, oldhash, newhash)
             # [cid,key] = self.get(self.ID(1,cid,key))
             [cid, key] = self.get(cid)
+
     def InsertKeyBalanced(cid, sk, k, kb):
         import copy
         # ks is the key that is split
@@ -710,15 +711,6 @@ class MapProcess:
 
         return seg_dict
 
-    def load_segmentsfromtxt(self,infile):
-        '''read infile txt file to read segments of a closed boundary line by line.'''
-        segs = []
-        #LOAD TXT FILE USING  NUMPY
-        import numpy as np
-        arr = np.loadtxt(infile)
-        segsarr = arr[:,1:].astype(int) #ignore first column.
-        return segsarr
-
     def segments_to_polyseq(self,segments):
         'segments of a polygon in either clockwise order or anticlockwise ordering.'
         import numpy
@@ -759,10 +751,11 @@ class MapProcess:
                 segs.append(tt)
         return segs
     def splitsegments(self,segs, xun):
+        import warnings
         '''splits segments in segs where vertical lines pass through x-values in xun.
         that is, at points {(x,0): x in xun}'''
-        ttt = []  # to hold all split lines
-        for i in range(len(segs)):  # split lines
+        ttt,n = [],len(segs) # to hold all split lines
+        for i in range(n):#len(segs)):  # split lines
             x1 = segs[i][0]
             y1 = segs[i][1]
             x2 = segs[i][2]
@@ -778,10 +771,15 @@ class MapProcess:
                     xc = xun[j]
                     xn = xun[j + 1]
                     if xn < x2:
-                        y = float(y2 - y1) / (x2 - x1) * (xn - x1) + y1
-                        yn =  int(round(y))
-                        ttt.append((xc, yc, xn, yn)+segs[i][4:])
-                        yc = yn
+                        if x2 <0 or x1<0 or y1<0 or y2<0:
+                            print (".<0"), i, j, y2,y1,x2,x1,xn,x1,y1
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("error")
+                            y = float(y2 - y1) / (x2 - x1) * (xn - x1) + y1
+                            yn =  int(round(y))
+                            ttt.append((xc, yc, xn, yn)+segs[i][4:])
+                            yc = yn
+
                     elif xn == x2:  # last one
                         ttt.append((xc, yc, xn, y2)+segs[i][4:])
                 # end for
@@ -934,14 +932,14 @@ class MapProcess:
         fig = plt.figure(1, figsize=(5, 5), dpi=100)
         ax = fig.add_subplot(111)
         #original polygon
-        #ax.plot([t[0] for t in pp], [t[1] for t in pp], color='#6699cc', alpha=1,linewidth=1.5, solid_capstyle='round', zorder=2)
+        ax.plot([t[0] for t in pp], [t[1] for t in pp], color='#6699cc', alpha=1,linewidth=1.5, solid_capstyle='round', zorder=2)
         #splits
         maxy = -sys.maxint
         for split in splitsegs:
             maxy = max(maxy,max([split[1], split[3]]))
-            ax.plot([round(split[0]), round(split[2])], [split[1], split[3]], '-',linewidth=0.5, c='red')
+            ax.plot([round(split[0]), round(split[2])], [split[1], split[3]], '--',linewidth=0.5, c='red')
             ax.plot([split[0], split[2]], [split[1], split[3]], 'x', c='blue') #split-points
-            #ax.plot([split[0], split[0]], [0, 14], '--', c='red', linewidth=0.2)
+            ax.plot([split[0], split[0]], [0, 14], '-', c='red', linewidth=2)
             pass
         ax.set_title('split points')
         major_xticks = np.arange(-1, max(xun)+1, 1)
@@ -968,9 +966,9 @@ class MapProcess:
 
     def test_create_dls_for_slabbed_polygon(self):
 
-        import datetime, copy, numpy as np, hashlib, sys, collections, random
-
-        from_segfile = True
+        import datetime, copy, numpy as np, hashlib, sys, collections, random, time
+        np.seterr(all='warn')
+        from_segfile = False
         home = "D:/workspace/sqdm-repo/sqdm/out/tmp"
         infile1 = home + "/usa.prj.lbl.txn.int.txt"
         infile2 = home + "/states.prj.lbl.txn.int.txt"
@@ -986,8 +984,10 @@ class MapProcess:
         MP = MapProcess()
         segs = []
         if from_segfile:
-            segs = MP.load_segmentsfromtxt(infile1)
-            segs =  tuple(map(tuple, segs))
+            arr = np.loadtxt(infile1)
+            segsarr = arr[:, 1:].astype(np.dtype('int64'))  # ignore first column.
+            print segsarr[20203,]
+            segs =  tuple(map(tuple, segsarr))
             pp = MP.segments_to_polyseq(segs)
             print segs[0:10]
             print pp[0:10]
@@ -1001,8 +1001,12 @@ class MapProcess:
         xlist = [[t[0], t[2]] for t in segs]
         xlist = [x for sublist in xlist for x in sublist]
         xun = sorted(list(set(xlist)))
-
+        print("xmax"), max(xun),min(xun)
+        t0 = time.time()
         splitsegs = MP.splitsegments(segs, xun)  # to hold all split lines
+        print("nsplits"),len(splitsegs), time.time()-t0
+        for split in splitsegs[0:10]:
+            print split
 
         yblocks_onx = MP.yblocks(xun=xun, splits=splitsegs) #To DO: remove slope from yblocks.
         print("yblocks_onx"),yblocks_onx
@@ -1167,9 +1171,8 @@ class TestMapProcess:
         infile1 = home+"/usa.prj.lbl.txn.int.txt"
         infile2 =home +"/states.prj.lbl.txn.int.txt"
         segsarr = self.mp.load_segmentsfromtxt(infile1)
-        segs =segsarr[:,1:-3]/10000
-        segs = segs.tolist()[0:1000]
-
+        print(".,,,,,,,,,,,,,,,,,."),segsarr[20203]
+        print("............................")
         #plot
         #self.plot_boundary(segs)
         return segsarr
