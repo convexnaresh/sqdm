@@ -90,7 +90,7 @@ class DLS:
             #newhash = self.h(xk, xk, yk,yk,0, t)
             S = DS.St(xk,xk,yk,yk,val={},type_=0,posx=0,posy=0,colid=cid)
             newhash = S.h()
-            print("put"),self.ID(cid, S.xkey,S.xnkey,S.ykey)
+            print("Inserting first key in DLS."),self.ID(cid, S.xkey,S.xnkey,S.ykey)
             print cid, S.xkey,S.xnkey,S.ykey
             self.put(self.ID(cid, S.xkey,S.xnkey,S.ykey), S) #id is cid+h(xk)+h(xnk)+h(yk)
             self.put(self.ID(cid, 0, 0), newhash)
@@ -117,7 +117,7 @@ class DLS:
             self.depths[childcid] = 0
             return childcid
 
-    def InsertKey(self, collectid=None, structS=None,xnewkey=None,ynewkey=None,dimension='y'):  # sk is the key that is split to insert key k
+    def InsertKey(self, collectid=None, structS=None,xnewkey=None,ynewkey=None,dimension='y'):  # structS has xkey that is the key that is split to insert key k
         import copy
         #print(".."),collectid, structS.xkey, structS.xnkey,structS.ykey,self.ID(collectid, structS.xkey, structS.xnkey,structS.ykey)
         Sdic = self.get(self.ID(collectid, structS.xkey, structS.xnkey,structS.ykey))  # cast to S obj
@@ -172,7 +172,7 @@ class DLS:
                 return None, None  # new key k is not enclosed by sk, sk ......(k < skp <= sk) or (sk <= skp < k):
             old_xnk = S.xnkey #back-up
             S.xnkey = xnewkey;
-            SN.xkey = xnewkey
+            SN.xkey = xnewkey #new S
             ox = S.x;
             oy = S.y  # old x, y values of item sk, it's going to be pulled down.
             oldhash_sk = self.get(self.ID(collectid, ox, oy))
@@ -338,7 +338,7 @@ class DLS:
         # now write back new hashes
         self.put(h(cid, S1.x, S1.y), hashS1);
         self.put(h(cid, S3.x, S3.y), hashS3);
-        self.put(h(cid, oox, ooy), hashS1S3);
+        self.put(h(cid, ox, oy), hashS1S3);
 
         [new, newnew] = self.UpdateHashes(cid, ox, oy, hashS1, hashS1S3);
         [p_cid, p_key] = self.get(cid);
@@ -676,6 +676,14 @@ class MapProcess:
     def yblocks(self,xun=[], splits=[]):
         '''xun is list of unique x values; splits are split segments (x1,y1,x2,y2) in a polygon
         returns: {x:[(y1,y2),...]}'''
+
+        #order the segments by increasing x-value
+
+        for i in xrange(len(splits)):
+            x1,y1,x2,y2 = splits[i][0:4]
+            if not x1 <= x2:
+                splits[i] = (x2,y2,x1,y1,1) + splits[i][5:]
+
         xdict = {}
         for i in range(len(xun) - 1):
             xl = xun[i]
@@ -711,25 +719,60 @@ class MapProcess:
 
         return seg_dict
 
-    def segments_to_polyseq(self,segments):
-        'segments of a polygon in either clockwise order or anticlockwise ordering.'
+    def segments_to_polyseq(self,segments,xforward_annotated=False):
+        '''segments of a polygon in either clockwise order or anticlockwise ordering.
+        end points of each segments must be in the same order of their occurance in the corres
+        ponding polygon.
+        '''
         import numpy
         polypts =[]
         if type(segments) == numpy.ndarray:
-            segments = segments[0:,0:5].tolist()
+            segments = segments[0:,0:].tolist()
+
         n = len(segments)
-        for idx in xrange(n):
-            seg = segments[idx]
-            x1,y1,x2,y2,isswp = seg[0:5]
-            #swapped.
-            if isswp:
-                x1,y1,x2,y2 = x2,y2,x1,y1
-            polypts +=[(x1,y1)]
+        if n == 0:
+            return []
+
+        #if xforward_annotated, then segment's tuple size is 5 with isswap value.
+        swapcond= xforward_annotated and len(segments[0]) > 4
+        for idx in xrange(0,n,2):
+            if len(segments[idx])<4:
+                print("segment must contain 4 values (x1,y1,x2,y2) for two end points.")
+                return []
+            if swapcond and segments[idx][4] : #isswap value=1
+                x1, y1, x2, y2 = segments[idx][0:4]
+                polypts += [(x2, y2),(x1,y1)]
+            else:
+                x1, y1, x2, y2 = segments[idx][0:4]
+                polypts +=[(x1,y1),(x2,y2)]
         #append start pt, append start pt as end pt to complete loop.
-        polypts += [polypts[0]]
+        if n%2 == 0: #n is even
+            polypts += [polypts[0]]
         return polypts
 
-    def polysegments(self,points_list):
+    def remove_xforwardannot(self,segarr,xforward_annotated=True):
+        '''fifth column must be isswap value which means that segment endpoints
+        are swapped.'''
+        import numpy as np
+        n = len(segarr)
+        if n == 0:
+            return []
+
+        # if xforward_annotated, then segment's tuple size is 5 with isswap value.
+        swapcond = xforward_annotated and len(segarr[0]) > 4
+        if not swapcond:
+            return segarr
+        def rxf(seg):
+            if len(seg) < 4:
+                print("segment must contain 4 values (x1,y1,x2,y2) for two end points.")
+                return []
+            if seg[4]:  # isswap value=1
+                x1, y1, x2, y2 = seg[0:4]
+                return [x2,y2,x1,y1,0] + list(seg[5:])
+            return seg
+        return np.apply_along_axis(rxf,1,segarr)
+
+    def polysegments(self,points_list,xforward=False):
         pp = points_list
         segs = []
         n = len(pp) - 1  # the last point is also the first point.
@@ -741,32 +784,70 @@ class MapProcess:
             # collect all x-s in a dictionary
             # undict[x1]=1
             # undict[x2]=1
-            # arrange lines so first x-coordinate is less that second
-            if x1 <= x2:
-                tt = (x1, y1, x2, y2,0) #0 means line from A-B is original
+            if xforward:
+                # arrange lines so first x-coordinate is less that second
+                if x1 <= x2:
+                    tt = (x1, y1, x2, y2, 0)  # 0 means line from A-B is original
+                else:
+                    tt = (x2, y2, x1, y1, 1)  # 1 means direction change. B to A is original
             else:
-                tt = (x2, y2, x1, y1,1) #1 means direction change. B to A is original
+                tt = (x1, y1, x2, y2)  ##0 means line from A-B is original and not changed.
             if tt not in segs:
                 segs.append(tt)
         return segs
-    def splitsegments(self,segs, xun,roundtoint=True):
+    def splitsegments(self,segs, xun,roundtoint=False,docountsplit=True):
         import warnings
         '''splits segments in segs where vertical lines pass through x-values in xun.
-        that is, at points {(x,0): x in xun}'''
+        that is, at points {(x,0): x in xun}. roundtoint=True means that the split end-points
+        are rounded to nearest integer. this function maintains the order of split segments 
+        to the original ordering of segments 'segs' in anticlockwise direction.'''
+        splitcounts =[]
         ttt,n = [],len(segs) # to hold all split lines
-        for i in range(n):#len(segs)):  # split lines
-            print segs[i]
-            x1 = segs[i][0]
-            y1 = segs[i][1]
-            x2 = segs[i][2]
-            y2 = segs[i][3]
-            li = xun.index(x1)
-            hi = xun.index(x2)
-            if segs[i][4]:
-                ttt+= self.split_xbackward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
-            else:
-                ttt += self.split_xforward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
-        return ttt
+        #no segment in segs to split.
+        if len(segs) ==0 or len(xun)==0:
+            print("Either of initial parameter's size is 0.")
+            return segs
+        for seg in segs:
+            if len(seg) < 4:
+                raise "Length of segment must be at least 4. A segment format is (x1,y1,x2,y2)."
+        #size of each segment's is 4.
+        if len(segs[0]) >= 4:
+            for i in range(n):  # len(segs)):  # split lines
+                x1 = segs[i][0]
+                y1 = segs[i][1]
+                x2 = segs[i][2]
+                y2 = segs[i][3]
+                xforward = x1 <= x2 #see fun polysegments for the logic.
+                if xforward == False:#is False: #swap pts.
+                    x1,y1,x2,y2 = x2,y2,x1,y1
+                # do not split if no split indx is found
+                try:
+                    li = xun.index(x1)
+                    hi = xun.index(x2)
+                except:
+                    ttt += [(x1,y1,x2,y2)]
+                    continue
+                if xforward:  # xforward value is True
+                    tt=self.split_xforward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
+                    #ttt += tt #self.split_xforward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
+                else:
+                    #xforward False
+                    tt = self.split_xbackward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
+                ttt += tt #self.split_xbackward(li, hi, x1, y1, x2, y2, segs[i], xun, roundtoint=roundtoint)
+                splitcounts +=[len(tt)]
+            #end-for
+        if docountsplit:
+            return ttt,splitcounts
+        else:
+            return ttt
+
+
+    def split_segment(self,seg, xlist,roundtoint=True):
+        xun = sorted(xlist)
+        return splitsegments(self, [seg], xun, roundtoint)
+
+    def atomic_split(self):
+        pass
 
     def split_xbackward(self,li,hi,x1,y1,x2,y2,seg,xun,roundtoint=True):
         import warnings
@@ -775,8 +856,7 @@ class MapProcess:
         #change isswap value to 0 so that the original order is already maintained.
         newattr = (0,)+seg[5:]
         if nn < 2:  # difference 0/1 means no split
-            ttt.append((x1, y1, x2, y2) + seg[4:])
-            print("\t"), (x1, y1, x2, y2) + seg[4:]
+            ttt.append((x2, y2, x1, y1) + seg[4:])
         else:  # chopping necessary
             yc = y2
             for j in range(hi,li,-1):
@@ -789,12 +869,10 @@ class MapProcess:
                         if roundtoint:
                             yn = int(round(yn))
                         ttt.append((xc, yc, xn, yn) + seg[4:])
-                        print("\t"), (xc, yc, xn, yn) + seg[4:]
                         yc = yn
 
                 elif xn == x1:  # last one
                     ttt.append((xc, yc, xn, y1) + seg[4:])
-                    print("\t"), (xc, yc, xn, y1) + seg[4:]
             # end for
         return ttt
 
@@ -804,7 +882,6 @@ class MapProcess:
         nn = hi - li
         if nn < 2:  # difference 0/1 means no split
             ttt.append((x1, y1, x2, y2) + seg[4:])
-            print("\t"), (x1, y1, x2, y2) + seg[4:]
         else:  # chopping necessary
             yc = y1
             for j in range(li, hi):
@@ -817,16 +894,12 @@ class MapProcess:
                         if roundtoint:
                             yn = int(round(yn))
                         ttt.append((xc, yc, xn, yn) + seg[4:])
-                        print("\t"), (xc, yc, xn, yn) + seg[4:]
                         yc = yn
 
                 elif xn == x2:  # last one
                     ttt.append((xc, yc, xn, y2) + seg[4:])
-                    print("\t"), (xc, yc, xn, y2) + seg[4:]
             # end for
         return ttt
-
-
 
     def test_insert_sequence(self,dlsObj,cid,pkey,xun):
 
@@ -911,7 +984,6 @@ class MapProcess:
                     S,SN=dlsObj.InsertKey(collectid = cid,structS=stS,xnewkey = None, ynewkey = ynew, dimension = 'y')
                     #split the entry structS=S and add new ykey
 
-
     def  non_overlaping_yspans(self,ytuples):
         '''given list of (yi,yj,li) that means line li has y-span yi-yj, construct a coverup y-span
         such that the y-span's form a complete lut-entries. For instance:
@@ -961,135 +1033,84 @@ class MapProcess:
             ybot,ytop = v[1]
             yvalues +=[ybot,ytop]
         yvalues = sorted(list(set(yvalues)))
-        print("\t"),yvalues
         return recs,yvalues
 
-    def graph(self,pp,splitsegs,xun,yblocks_onx=None):
+    def graph(self,pp,splitpts,xun,yblocks_onx=None):
         import numpy as np, sys
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
         from Hasher import Helper
         from collections import OrderedDict
 
-        fig = plt.figure(1, figsize=(5, 5), dpi=100)
+        fig = plt.figure(1, figsize=(10,10), dpi=100)
         ax = fig.add_subplot(111)
         #original polygon
-        ax.plot([t[0] for t in pp], [t[1] for t in pp], color='#6699cc', alpha=1,linewidth=1.5, solid_capstyle='round', zorder=2)
-        #splits
-        maxy = -sys.maxint
-        for split in splitsegs:
-            maxy = max(maxy,max([split[1], split[3]]))
-            ax.plot([round(split[0]), round(split[2])], [split[1], split[3]], '--',linewidth=0.5, c='red')
-            ax.plot([split[0], split[2]], [split[1], split[3]], 'x', c='blue') #split-points
-            ax.plot([split[0], split[0]], [0, 14], '-', c='red', linewidth=2)
+        #ax.plot([t[0] for t in pp], [t[1] for t in pp], '-',color='#6699cc', alpha=1,linewidth=1.5, solid_capstyle='round', zorder=2)
+        #splits #6699cc'
+
+        #original polygon pts.
+        for i in range(len(pp)-1):
+            x1,y1 = pp[i]
+            x2,y2 = pp[i+1]
+            #plt.arrow(x1, y1, (x2-x1), (y2-y1), head_width=10000, head_length=10000, fc='b', ec='b')
+            plt.plot(x1,y1,'.')
+            #plt.text(x1, y1+.25, (i),fontsize=8)
+
+        #split polygon pts.
+        for i in range(len(splitpts)-1):
+            x1,y1 = splitpts[i]
+            x2,y2 = splitpts[i+1]
+            #plt.arrow(x1, y1, (x2-x1), (y2-y1), head_width=10000, head_length=10000, fc='b', ec='b')
+            plt.plot(x1,y1,'.',c='r')
+            #plt.text(x1, y1 - 1.5, (i))
+
+        #split segments
+        pp = splitpts
+        #ax.plot([t[0] for t in pp], [t[1] for t in pp], '-', color='red', alpha=1, linewidth=.5,solid_capstyle='round', zorder=2)
+        #
+        maxy = maxx = -sys.maxint
+        miny = -maxy
+        for pt in splitpts:
+            x1,y1= pt
+            #plt.arrow(x1, y1, (x2-x1), (y2-y1), head_width=1/2.0000, head_length=.10000, fc='r', ec='g')
+            maxy = max(maxy,y1)
+            miny= min(miny, y1)
+            ##plt.plot([x1,x2],[y1,y2], '--',linewidth=.5, c='red')
+            #ax.plot([x1,x2], [x1,x2], 'x', c='blue') #split-points
+            #ax.plot([x1,x2][x1,x2], [y1,y2], '-', c='red', linewidth=2)
             pass
+        #plot vertical bars.
+        for xk in xun:
+            plt.plot([xk, xk], [miny, maxy], '--', linewidth=.5, c='red')
+            pass
+
         ax.set_title('split points')
-        major_xticks = np.arange(-1, max(xun)+1, 1)
-        major_yticks = np.arange(-1, maxy+1, 1)
-        ax.set_xticks(major_xticks)
-        ax.set_yticks(major_yticks)
-        ax.yaxis.grid(which="major", color='blue', linestyle='--', linewidth=0.2)
+        #major_xticks = np.arange(-1, max(xun)+1, 1)
+        #major_yticks = np.arange(-1, maxy+1, 1)
+        #ax.set_xticks(major_xticks)
+        #ax.set_yticks(major_yticks)
+        #ax.yaxis.grid(which="major", color='blue', linestyle='--', linewidth=0.2)
 
         #ax.set_xticks(minor_yticks, minor=True)
-        #ax.grid(color='gray', which="major",linestyle='--', linewidth=0.5)
+        ax.grid(color='gray', which="major",linestyle='--', linewidth=0.5)
         #if yblocks_onx plot vertical bars for vertial slabs; use y-spans to draw recs on the slabs.
+
+        '''
         orderedyblocks_onx = OrderedDict(sorted(yblocks_onx.items(),key=lambda t:t[0]))
         Helper.addItem(orderedyblocks_onx)
         for xkey,yblocks in orderedyblocks_onx.items():
             #plot vertical bar.
-            ax.plot([xkey,xkey],[0,maxy], '-',linewidth=0.75, c='green')
+            #ax.plot([xkey,xkey],[0,maxy], '-',linewidth=0.75, c='green')
             yspans = yblocks[1]
             for yvalue in yspans:
                 if Helper.getNextKey(xkey) !=None:
                     ax.plot([xkey, Helper.getNextKey(xkey)], [yvalue, yvalue], '-', linewidth=0.5,c='black')
                     pass
             pass
+        '''
+
         plt.show()
 
-    def test_create_dls_for_slabbed_polygon(self):
-
-        import datetime, copy, numpy as np, hashlib, sys, collections, random, time
-        np.seterr(all='warn')
-        from_segfile = False
-        home = "D:/workspace/sqdm-repo/sqdm/out/tmp"
-        infile1 = home + "/usa.prj.lbl.txn.int.txt"
-        infile2 = home + "/states.prj.lbl.txn.int.txt"
-
-        poly1 = [(5, 6), (2, 5), (4, 3), (5, 2), (6, 3), (7, 1), (9, 2), (11, 3), (13, 5), (14, 6), (13, 7),
-                 (12, 8), (11, 9), (9, 12), (8, 13), (5, 12), (4, 10), (3, 9), (5, 6)]
-        poly2 = [(11,9),(10,8.5), (9.5,8),(9,7),(8,7.5),(6,8),(4,9),(7,6), (6,5),(7,4),(9,5),(8,3),(12,1),(14,2),(15,1),(16,2),(17,4),(15,6),
-                 (14,4),(11,5),(13,7),(11,9)]
-        poly3 = [(11,15),(11,16),(7,16),(5,14),(7,15),(5,11),(7,12),(5,9 ),(9,7),(11,9),(12,7),(10,5),(12,4),(14,6),
-                 (18,4),(20,7),(23,6),(24,9),(22,11),(20,10),(21,12),(19,10),(19,13),(18,12),(17,14),(15,12),(18,9),(16,8),
-                 (14,11),(15,14),(13,15),(11,12),(9,14),(11,15)]
-
-        MP = MapProcess()
-        segs = []
-        if from_segfile:
-            arr = np.loadtxt(infile1)
-            segsarr = arr[:, 1:].astype(np.dtype('int64'))  # ignore first column.
-            segs =  tuple(map(tuple, segsarr))
-            pp = MP.segments_to_polyseq(segs)
-        else:
-            pp = poly1
-            pp = [(int(t[0]), int(t[1])) for t in pp]  # convert to integers.
-            segs = MP.polysegments(pp)  # collection of tuple (x1,y1,x2,y2)
-            #tag each segments:
-            segs = [t+('A','B','s') for t in segs]
-
-        xlist = [[t[0], t[2]] for t in segs]
-        xlist = [x for sublist in xlist for x in sublist]
-        xun = sorted(list(set(xlist)))
-        print("xmax"), max(xun),min(xun)
-        t0 = time.time()
-        splitsegs = MP.splitsegments(segs, xun)  # to hold all split lines
-        print("nsplits"),len(splitsegs), time.time()-t0
-        for split in splitsegs[0:10]:
-            print split
-
-        yblocks_onx = MP.yblocks(xun=xun, splits=splitsegs) #To DO: remove slope from yblocks.
-        print("yblocks_onx"),yblocks_onx
-
-        for x,yblocklst in yblocks_onx.items():
-            #sort all y-values in the x-interval.
-            print("key x:"),x, yblocklst
-            nonoverlaping_yspans,uniqyvalues = self.non_overlaping_yspans(yblocklst)
-            yblocks_onx[x] = [nonoverlaping_yspans,uniqyvalues]
-
-        dlsObj = DLS()
-        cid = dlsObj.Init()
-        print("collected unique x-values in map."),xun
-        # graphing
-        MP.create_dls_for_slabbed_polygon(dlsObj, cid,copy.deepcopy(xun),copy.deepcopy(yblocks_onx))
-        MP.graph(pp,splitsegs,xun,yblocks_onx)
-
-        print("dls stats:"),dlsObj.dlsstats()
-        leaf_nodes = dlsObj.GetTopLevelStructures()
-        print(len(leaf_nodes))
-        for lnode in leaf_nodes:
-            print dlsObj.ID(dlsObj.maincolid,lnode.xkey,lnode.ykey),lnode
-            pass
-        print("hash tree"), len(dlsObj.GetTopLevelHashTree())
-
-        for hash in dlsObj.GetTopLevelHashTree():
-            print hash
-            pass
-
-        lidx = random.randint(0,len(leaf_nodes)-1)
-        print "leaf",lidx,leaf_nodes[lidx]
-        compnodes= dlsObj.GetComplementaryNodesForS(leaf_nodes[lidx])
-        print("complementary-nodes"),compnodes
-        print("root"),dlsObj.GetCommitmentFromCompNodes(compnodes,leaf_nodes[lidx])==dlsObj.GetMainCollectionCommitment()
-        assert dlsObj.GetMainCollectionCommitment() == dlsObj.GetCommitmentFromCompNodes(compnodes,leaf_nodes[lidx]),"root did not matched!!"
-        #dlsObj.plot_hash_tree(dlsObj.GetTopLevelHashTree())
-
-        #save set of segments as as a dictionary
-        #save GD as a dictionary
-        gdfile = "GD"
-        self.save(GD, gdfile)
-        print("GD saved in"), gdfile
-        self.save(splitsegs,'segments')
-        print("splitsegs saved in "),'segments'
 
     def load_data(self,infile):
         import json
@@ -1135,11 +1156,325 @@ class MapProcess:
         where Ra and Rb are labels for regions above and below the segment A(x1,y1)--B(x2,y2)'''
         import osgeo, ogr, shapely
 
+    def save_xun_asshp(self,xun, outfilename, mapextent=[]):
+        epsgdic = {'nad83': 4269, 'wgs84': 4326, 'pseudoutm': 3857, 'worldmercater': 3395}
+
+        from shapely.geometry import LinearRing, Point, mapping
+        from osgeo import ogr, osr
+        import os
+        # load initial vertex order files.
+        # save to shp.
+        outfilename += '.shp'
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        outprjref = osr.SpatialReference()
+        outprjref.ImportFromEPSG(epsgdic["worldmercater"])
+
+        if os.path.exists(outfilename):
+            driver.DeleteDataSource(outfilename)
+        outDataSet = driver.CreateDataSource(outfilename)
+
+        outLayer = outDataSet.CreateLayer("mystates", outprjref, geom_type=ogr.wkbMultiLineString)
+
+        outLayer.CreateField(ogr.FieldDefn('STATEFP'), ogr.OFTInteger) #create new field/column/attribute
+        outLayerDefn = outLayer.GetLayerDefn()
+        poly = ogr.Geometry(ogr.wkbPolygon)
+
+        #save as polygon feature
+        mls = ogr.Geometry(ogr.wkbMultiLineString)
+        ymin,ymax = mapextent[0][1],mapextent[1][1]
+        for x1 in xun:
+            ls = ogr.Geometry(ogr.wkbLineString)
+            ls.AddPoint(float(x1),float(ymin))
+            ls.AddPoint(float(x1),float(ymax))
+            mls.AddGeometry(ls)
+
+        outFeature = ogr.Feature(outLayerDefn)
+        outFeature.SetGeometry(mls)
+
+        outFeature.SetField(outLayerDefn.GetFieldDefn(0).GetNameRef(), 99) #polygon id 99
+        outLayer.CreateFeature(outFeature)
+        # end-for
+        outLayer = outFeature = poly  = ring = outLayerDefn = outLayer = outDataSet = None
+        print("Vertical lines are saved as shape file in "),outfilename
+
+    def poly_ptstoshp(self,polypts,outfilename,save_as_multipt=False):
+        epsgdic = {'nad83': 4269, 'wgs84': 4326, 'pseudoutm': 3857, 'worldmercater': 3395}
+
+        from shapely.geometry import LinearRing, Point, mapping
+        from osgeo import ogr, osr
+        import os
+        save_as_multipt = save_as_multipt
+        # load initial vertex order files.
+        # save to shp.
+        if save_as_multipt:
+            outfilename +='as_points'
+
+        outfilename += '.shp'
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        outprjref = osr.SpatialReference()
+        outprjref.ImportFromEPSG(epsgdic["worldmercater"])
+
+        if os.path.exists(outfilename):
+            driver.DeleteDataSource(outfilename)
+        outDataSet = driver.CreateDataSource(outfilename)
+        if save_as_multipt:
+            outLayer = outDataSet.CreateLayer("mystates", outprjref, geom_type=ogr.wkbMultiPoint)
+        else:
+            outLayer = outDataSet.CreateLayer("mystates", outprjref, geom_type=ogr.wkbMultiPolygon)
+
+        outLayer.CreateField(ogr.FieldDefn('STATEFP'), ogr.OFTInteger) #create new field/column/attribute
+        outLayerDefn = outLayer.GetLayerDefn()
+        poly = ogr.Geometry(ogr.wkbPolygon)
+
+        #save as point feature
+        if not save_as_multipt:
+            ring = ogr.Geometry(ogr.wkbLinearRing)
+            for x1,y1 in polypts:
+                x,y = float(x1),float(y1)
+                ring.AddPoint(x, y)
+            poly.AddGeometry(ring)
+
+            outFeature = ogr.Feature(outLayerDefn)
+            outFeature.SetGeometry(poly)
+
+        #save as polygon feature
+        if save_as_multipt:
+            mp = ogr.Geometry(ogr.wkbMultiPoint)
+            for x1,y1 in polypts:
+                point1 = ogr.Geometry(ogr.wkbPoint)
+                point1.AddPoint(float(x1),float(y1))
+                mp.AddGeometry(point1)
+            outFeature = ogr.Feature(outLayerDefn)
+            outFeature.SetGeometry(mp)
+
+        outFeature.SetField(outLayerDefn.GetFieldDefn(0).GetNameRef(), 99) #polygon id 99
+        outLayer.CreateFeature(outFeature)
+        # end-for
+        outLayer = outFeature = poly  = ring = outLayerDefn = outLayer = outDataSet = None
+        print("polygion points is saved in .shp file "),outfilename
 
 class TestMapProcess:
     mp  = MapProcess()
+    poly1 = [(5, 6), (2, 5), (4, 3), (5, 2), (6, 3), (7, 1), (9, 2), (11, 3), (13, 5), (14, 6), (13, 7),
+             (12, 8), (11, 9), (9, 12), (8, 13), (5, 12), (4, 10), (3, 9), (5, 6)]
+    poly2 = [(11, 9), (10, 8.5), (9.5, 8), (9, 7), (8, 7.5), (6, 8), (4, 9), (7, 6), (6, 5), (7, 4), (9, 5), (8, 3),
+             (12, 1), (14, 2), (15, 1), (16, 2), (17, 4), (15, 6),
+             (14, 4), (11, 5), (13, 7), (11, 9)]
+    poly3 = [(11, 15), (11, 16), (7, 16), (5, 14), (7, 15), (5, 11), (7, 12), (5, 9), (9, 7), (11, 9), (12, 7), (10, 5),
+             (12, 4), (14, 6),
+             (18, 4), (20, 7), (23, 6), (24, 9), (22, 11), (20, 10), (21, 12), (19, 10), (19, 13), (18, 12), (17, 14),
+             (15, 12), (18, 9), (16, 8),
+             (14, 11), (15, 14), (13, 15), (11, 12), (9, 14), (11, 15)]
+    polylist = [poly1,poly2,poly3]
+    plotdir="../out/plots/Figure-"
+    home = "D:/workspace/sqdm-repo/sqdm/out/tmp"
+    infile1 = home + "/usa.prj.lbl.txn.int.txt"
+    infile2 = home + "/states.prj.lbl.txn.int.txt"
+    gddir = "../out/tmp"
+    segdir = "../out/tmp"
+
+    def polygon_extent(self,segs):
+        xvals = []
+        yvals = []
+        for t in segs:
+            xvals += [t[0], t[2]]
+        for t in segs:
+            yvals += [t[1], t[3]]
+
+        xmax, xmin, ymax, ymin = max(xvals), min(xvals), max(yvals), min(yvals)
+        return [(xmin,ymin),(xmax,ymax)]
+
+    def rise_runstat(self,splits,stat_name=''):
+        arr = []
+        delxmax = -sys.maxint
+        delymax = -sys.maxint
+        delxymax = -sys.maxint
+        delxmin = -delxmax
+        delymin = -delymax
+        for sp in splits:
+            x1,y1,x2,y2 = sp[0:4]
+            dx,dy = abs(x1-x2),abs(y1-y2)
+            delxmax = max(delxmax,dx)
+            delymax = max(delymax,dy)
+            delxmin = min(delxmin, dx)
+            delymin = min(delymin, dy)
+
+        delxymax = max(delxymax,delymax)
+        delxymin = min(delxmin,delymin)
+        return {stat_name+"delxmax":delxmin,
+                stat_name+"delymax":delymax,
+                stat_name+"delxmin":delxmin,
+                stat_name+"delymin":delymin,
+                stat_name+"delxymax":delxymax,
+                stat_name+"delxymin":delxymin}
+
+    def todo(self):
+        #is-cyclic
+        # arrange o shtat x1 < x2, if x1== x2, then order y1 < 2
+        # xuniq pts
+        # atomic split.--put logic of tracking umerkle tree.
+        #histogram
+        pass
+    def test_create_dls_for_slabbed_polygon(self):
+
+        import datetime, copy, numpy as np, hashlib, sys, collections, random, time
+        np.seterr(all='warn')
+        load_us_map = 1
+        roundtoint = True
+        ns = 0#NUM Ber of segments to test.
+        app = ''
+        segs = []
+        stats ={}
+        import copy
+        if load_us_map:
+            if ns:
+                app = "partial_"+str(ns)
+            arr = np.loadtxt(self.infile1)
+            segsarr = arr[32774:32804, 1:].astype(np.dtype('int64'))  # ignore first column which is Id.
+            segsarr = self.mp.remove_xforwardannot(segsarr) #xforward-annotation.
+            segs = tuple(map(tuple, segsarr))
+            stats.update(self.rise_runstat(segs,stat_name='omap'))
+            if ns :
+                segs = list(segs[0:ns])
+                segs += [segs[-1][2:4] + segs[0][0:2] + (0,0,999)]
+                segs = tuple(segs)
+
+            # make .shp file of original segs
+            xunshpoutfilename = "../out/tmp/" + app + "_us_xun"
+            shpoutfilename = "../out/tmp/"+app+"_us_omap--------"  # original-map. can be viewed in https://mapshaper.org/
+            polypts = self.mp.segments_to_polyseq(segs,xforward_annotated=False)
+            print len(polypts),polypts[30]
+            polypts = [(1002451148, 2157155400)] + polypts[0:30]
+            print polypts
+            #[(1002463148, 2157156810)]
+            stats['n(original-segments)'] = len(segs)
+            stats['n(pts-in-omap)']=len(polypts)
+            stats["map-extent"] = self.polygon_extent(segs)
+
+
+            pp = copy.deepcopy(polypts)
+            self.mp.poly_ptstoshp(polypts, shpoutfilename)
+            return 0
+            #self.mp.poly_ptstoshp(polypts, shpoutfilename,save_as_multipt=True)
+            print("number of pts in polygon:"),len(polypts)
+            outsplitmapfile = "../out/tmp/"+app+"_us_splitmap"  # can be viewed in https://mapshaper.org/
+            if roundtoint:
+                outsplitmapfile +=".int"
+        else:
+            polyid =1 #select polygon
+            pp = self.polylist[polyid]
+            pp = [(t[0], t[1]) for t in pp]  # convert to integers.
+            segs = self.mp.polysegments(pp,xforward=False)  # collection of tuple (x1,y1,x2,y2)
+            shpoutfilename = "../out/tmp/poly-" + str(polyid)
+            polypts = self.mp.segments_to_polyseq(segs,xforward_annotated=False)
+            self.mp.poly_ptstoshp(polypts, shpoutfilename)
+            #tag each segments:
+            segs = [t+('A','B','s') for t in segs]
+            outsplitmapfile = "../out/tmp/poly-split-" + str(polyid)
+            if roundtoint:outsplitmapfile = "../out/tmp/poly-"+str(polyid) +".int"
+
+        #find out unique x-values
+        xlist = [[t[0], t[2]] for t in segs]
+        xlist = [x for sublist in xlist for x in sublist]
+        xun = sorted(set(xlist))
+        #self.mp.save_xun_asshp(xun,xunshpoutfilename,stats["map-extent"])
+
+        print("len(segs),xmax,xmin,len(xun)"), len(segs),max(xun),min(xun),len(xun)
+        stats["n(unique-X-values)"] = len(xun)
+        stats["max(x-values)"] = max(xun)
+        stats["min(x-values"] = min(xun)
+
+        return 0
+        #spliting segs
+        t0 = time.time()
+        splitsegs,splitcounts = self.mp.splitsegments(segs, xun,roundtoint=roundtoint,docountsplit=True)  # to hold all split lines
+        stats["split-time"]=time.time()-t0
+        stats["n(splits)"] = len(splitsegs)
+        stats["max-split-count"] = max(splitcounts)
+        stats["min-split-count"] = min(splitcounts)
+        stats.update(self.rise_runstat(splitsegs,stat_name='splits'))
+        stats["n(splits)/n(seg)"]=stats["n(splits)"]/stats["n(original-segments)"]
+        print("completed splitsegments, nsplits,time"), len(segs), len(splitsegs), time.time() - t0
+
+        #make .shp file of splits
+        polyptssplit = self.mp.segments_to_polyseq(splitsegs)
+        self.mp.poly_ptstoshp(polyptssplit, outsplitmapfile)
+        self.mp.poly_ptstoshp(polyptssplit, outsplitmapfile,save_as_multipt=True)
+
+        #determine y-blocks for each x-key
+        t0 =time.time()
+        yblocks_onx = self.mp.yblocks(xun=xun, splits=splitsegs) #To DO: remove slope from yblocks.
+        print("completed yblocks dictionary  of x-key:[(y0,y1)...]"),len(yblocks_onx),time.time()-t0
+
+        #construct non-overlapping y-blocks
+
+        cnnt=cnnt2=cnnt3=0
+        for x,yblocklst in yblocks_onx.items():
+            nonoverlaping_yspans,uniqyvalues = self.mp.non_overlaping_yspans(yblocklst)
+            yblocks_onx[x] = [nonoverlaping_yspans,uniqyvalues] #we need nonoverlaping_yspans
+            cnnt += len(nonoverlaping_yspans)
+            cnnt2 += len(uniqyvalues)
+            cnnt3 += len(yblocklst)
+        stats["total-non-overlapping recs"] = cnnt
+        stats["total-uniq-yvalues"] = cnnt2
+        stats["total-yblocks-on-map"] = cnnt3 #must be equal to number of splits
+
+
+        #graphing
+        #self.mp.graph(pp,polyptssplit,xun,yblocks_onx)
+        #print stats
+        for k,v in stats.items():
+            print("\t"),k,v
+
+        dlsObj = DLS()
+        cid = dlsObj.Init()
+
+        #create dls-for-slabbed-polygon
+        t0=time.time()
+        self.mp.create_dls_for_slabbed_polygon(dlsObj, cid,copy.deepcopy(xun),copy.deepcopy(yblocks_onx))
+        print("Completed create_dls in (sec)"),time.time()-t0
+
+        #graphing
+        if not load_us_map:
+            #self.mp.graph(pp,splitsegs,xun,yblocks_onx)
+            pass
+        print("dls stats:"),dlsObj.dlsstats()
+        leaf_nodes = dlsObj.GetTopLevelStructures()
+
+
+        print(len(leaf_nodes))
+        for lnode in leaf_nodes:
+            print dlsObj.ID(dlsObj.maincolid,lnode.xkey,lnode.ykey),lnode
+            pass
+
+        print("number of hashes in hash tree-"), len(dlsObj.GetTopLevelHashTree())
+
+
+        for hash in dlsObj.GetTopLevelHashTree():
+            print hash
+            pass
+
+
+        lidx = random.randint(0,len(leaf_nodes)-1)
+        print "leaf",lidx,leaf_nodes[lidx]
+        compnodes= dlsObj.GetComplementaryNodesForS(leaf_nodes[lidx])
+        print("complementary-nodes for above leaf-"),compnodes
+        print("true root equals computed root for leaf tree?"),dlsObj.GetCommitmentFromCompNodes(compnodes,leaf_nodes[lidx])==dlsObj.GetMainCollectionCommitment()
+        assert dlsObj.GetMainCollectionCommitment() == dlsObj.GetCommitmentFromCompNodes(compnodes,leaf_nodes[lidx]),"root did not matched!!"
+        #dlsObj.plot_hash_tree(dlsObj.GetTopLevelHashTree())
+
+        #save set of segments as as a dictionary
+        #save GD as a dictionary
+        gdfile = self.gddir+"/GD"
+
+        print("Saving GD in "), gdfile
+        self.mp.save(GD, gdfile)
+
+        print("Saving splits in "),self.segdir+'/segments'
+        self.mp.save(splitsegs,self.segdir+'/segments')
+
     def plot_poly_splits_recons(self,pp,splitsegs,reconpoly):
-        import numpy as np, sys
+        import numpy as np, sys,datetime
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
 
@@ -1153,9 +1488,9 @@ class TestMapProcess:
         for split in splitsegs:
             maxy = max(maxy,max([split[1], split[3]]))
             maxx = max(maxx, max([split[0], split[2]]))
-            #ax.plot([split[0], split[2]], [split[1], split[3]], '--',linewidth=0.5, c='red')
+            ax.plot([split[0], split[2]], [split[1], split[3]], '--',linewidth=0.5, c='red')
             ax.plot([split[0], split[2]], [split[1], split[3]], 'x', c='blue') #split-points
-            #ax.plot([split[0], split[0]], [0, 14], '-', c='red', linewidth=2)
+            #ax.plot([split[0], split[0]], [0, maxy], '-', c='red', linewidth=0.75)
             pass
         #reconstructed poly
         pp=reconpoly
@@ -1167,7 +1502,9 @@ class TestMapProcess:
         ax.set_yticks(major_yticks)
         ax.yaxis.grid(which="major", color='blue', linestyle='--', linewidth=0.2)
         ax.xaxis.grid(which="major", color='blue', linestyle='--', linewidth=0.2)
-        plt.show()
+        d = datetime.datetime.now()
+        ext = str(d.date()) + "-" + str(d.time().hour) +'-'+str(d.time().minute)
+        plt.savefig(self.plotdir+ ext + '.png')
 
     def test_hash_segment(self):
         segment = (3341,41,50,13)
@@ -1175,13 +1512,10 @@ class TestMapProcess:
     def test_polygon_dict(self):
         segments =[(1,2,34,5),(1,24,65)]
         print self.mp.polygon_dict(segments)
+
     def test_shoelace_area(self):
         polysegs = [(2,4),(3,-8),(1,2)]
-        poly1 = [(5, 6), (2, 5), (4, 3), (5, 2), (6, 3), (7, 1), (9, 2), (11, 3), (13, 5), (14, 6), (13, 7),
-                 (12, 8), (11, 9), (9, 12), (8, 13), (5, 12), (4, 10), (3, 9), (5, 6)]
-        poly2 = [(11,9),(10,8.5), (9.5,8),(9,7),(8,7.5),(6,8),(4,9),(7,6), (6,5),(7,4),(9,5),(8,3),(12,1),(14,2),(15,1),(16,2),(17,4),(15,6),
-                 (14,4),(11,5),(13,7),(11,9)]
-        print("area by shoelace"),self.mp.shoelace_area(poly2)
+        print("area by shoelace"),self.mp.shoelace_area(self.poly2)
 
     def test_non_overlaping_yspans(self):
 
@@ -1225,25 +1559,22 @@ class TestMapProcess:
 
     def test_segments_to_polyseq(self):
         import time
-        poly2 = [(11,9),(10,8.5), (9.5,8),(9,7),(8,7.5),(6,8),(4,9),(7,6), (6,5),(7,4),(9,5),(8,3),(12,1),(14,2),(15,1),(16,2),(17,4),(15,6),
-                 (14,4),(11,5),(13,7),(11,9)]
-
-        pp = poly2
+        pp = self.poly2
         pp = [(int(t[0]), int(t[1])) for t in pp]  # convert to integers.
-        segs = self.mp.polysegments(pp)  # collection of tuple (x1,y1,x2,y2)
+        segs = self.mp.polysegments(pp)  # collection of tuple (x1,y1,x2,y2,isswap=[0,1]:default->False)
         #tag each segments:
         segs = [t+('A','B','s') for t in segs]
-
         xlist = [[t[0], t[2]] for t in segs]
         xlist = [x for sublist in xlist for x in sublist]
         xun = sorted(list(set(xlist)))
         print("xmax"), max(xun),min(xun)
-        t0 = time.time()
-        splitsegs = self.mp.splitsegments(segs, xun,roundtoint=False)  # to hold all split lines
 
-        print("splits:")
+        #split segments
+        t0 = time.time()
+        splitsegs = self.mp.splitsegments(segs, xun,roundtoint=True)  # to hold all split lines
         for sp in splitsegs:
             print sp
+        #reconstruct pts sequence from segments of polygon
         reconstpolypts = self.mp.segments_to_polyseq(splitsegs)
         print("completed segments_to_polyseq:")
         #plot original polygon, segment-from-original polygon, splits,re-constructed-polyygon
@@ -1256,7 +1587,6 @@ class TestMapProcess:
         infile2 =home +"/states.prj.lbl.txn.int.txt"
         arr = np.loadtxt(infile1)
         segsarr = arr[:, 1:].astype(np.dtype('int64'))  # ignore first column.
-
         #plot
         #self.plot_boundary(segs)
         return segsarr.tolist()
@@ -1325,9 +1655,10 @@ class TestMapProcess:
         self.test_segments_to_polyseq()
 
 if __name__ == "__main__":
-    #MapProcess().test_create_dls_for_slabbed_polygon()
     tmp = TestMapProcess()
-    tmp.run_tests()
+    tmp.test_create_dls_for_slabbed_polygon()
+
+    # tmp.run_tests()
 
     '''
     1) Given a series of points in a polygon, develop an algorithm to compute area of 
@@ -1339,7 +1670,10 @@ if __name__ == "__main__":
     5) Add structures like Road(speedlimit,divided,one way)
     /utility/ lines for creating Auxilary maps.
     6) Find queries like 5 nearest gas stations for a point.
-    7) Point Location problem. Given a point,which is the area that contains the point.'''
+    7) Point Location problem. Given a point,which is the area that contains the point.
+    8) Atomic split of a segment AB at point P. Which means that first get approval from the module that P lies on line AB,
+    then only split AB at point P.+
+    9) Draw an interrative diagram for sqdm.'''
 
 
 

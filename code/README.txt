@@ -9,7 +9,7 @@ import ntpath
 import math
 
 
-1) Merge counties to construct state's boundary. Shave the states.shp file
+1) Merge counties to construct state's boundary. Save the states.shp file
 2) Merge states to construct country boundary. Save the usa.shp file
 3) Take states.shp or usa.shp file to :
     --2) transform the co-ordinate system to projected coordinate system
