@@ -1,3 +1,6 @@
+'''This is method-2 for delegation.'''
+
+
 from SQDM import SQDM, Segment
 from collections import OrderedDict
 from simple_polygon import util
@@ -6,8 +9,9 @@ from sortedcontainers import SortedDict
 #CONSTANTS
 SQDM_DELEGATED_BY_ID = 777
 SQDM_DELEGATED_TO_ID= 444
-
 debug = False
+
+
 class Delegation:
     def __init__(self,delegated_dic={}):
 

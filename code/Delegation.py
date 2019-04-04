@@ -1,12 +1,13 @@
+'''This is method-1 for delegation.'''
+
+
 from SQDM import SQDM, Segment
 from collections import OrderedDict
 from simple_polygon import util
 from ast import literal_eval
-
 #CONSTANTS
 SQDM_DELEGATED_BY_ID = 777
 SQDM_DELEGATED_TO_ID= 444
-
 debug = False
 
 class Delegation:
