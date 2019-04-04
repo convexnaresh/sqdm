@@ -7,7 +7,8 @@ from ast import literal_eval
 SQDM_DELEGATED_BY_ID = 777
 SQDM_DELEGATED_TO_ID= 444
 
-debug = True
+debug = False
+
 class Delegation:
     def __init__(self,delegated_dic={}):
 
@@ -28,6 +29,32 @@ class Delegation:
                 seg_dictionary[seg.attr['edgeid']] =seg.dictentry_value()
 
         return seg_dictionary
+
+    def mesh_vertical_sweeplines(self,mesh_segents):
+        '''
+        :return: a dictionary whose key is xvalue, and value is
+        'index' of xvalue in sorted array.
+        '''
+        import collections
+
+        if mesh_segents:
+            xunik =[]
+            for seg in mesh_segents:
+                xunik +=[seg.getLeftPoint().getX(),seg.getRightPoint().getX()]
+            xunik = sorted(set(xunik))
+        else:
+            return {}
+
+        xunik_idx = enumerate(xunik)
+        orderedxunik =OrderedDict()
+        for idx,xval in xunik_idx:
+            orderedxunik[xval] = idx
+
+        if debug:
+            print("vertical_sweeplines \n"),orderedxunik
+            print("\n")
+        return orderedxunik
+
 
     def segment_mapping_to_yblocks(self,segments, template_sqdm):
         '''
@@ -53,7 +80,7 @@ class Delegation:
 
         return template_sqdm
 
-    def split_mesh_sides_at_x(self,sides, xunikdic):
+    def split_mesh_sides_at_x(self,mesh_segents, xunikdic):
 
         '''splits a given random set of segments at xunikdic values.
         xunikdic must be an ordred dictionary of x-values with xkey:index, index is the
@@ -63,7 +90,7 @@ class Delegation:
         retun: Type Segment list'''
 
         mesh_splits = []
-        for seg in sides:
+        for seg in mesh_segents:
             # split seg
             # 1)get x-values at which split must take place
             li = xunikdic[seg.getLeftPoint().getX()]

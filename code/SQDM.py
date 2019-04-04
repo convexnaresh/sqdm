@@ -179,19 +179,23 @@ class Segment(object):
         return None
 
     # given a point p, return the point on s that shares p's x-val
-    def get_y_at_x(self, x1):
+    def get_y_at_x(self, x1,doround=False):
         '''this is wrong. correct it.'''
         m = self.get_slope()
 
         # ditto; should check if y-val on seg
         if m is None:  # vertical segment
             return None
+
         y1 = m * (x1 - self.rp.x) + self.rp.y  # yn = float(y2 - y1) / (x2 - x1) * (xn - x1) + y1
+        if doround:
+            y1 = int(round(y1))
+
         return Point((x1,y1))
 
-    def split_at_x(self,xvalue):
+    def split_at_x(self,xvalue,doround=False):
         import copy
-        splitpt = self.get_y_at_x(xvalue)
+        splitpt = self.get_y_at_x(xvalue,doround)
 
         #split point is none or split point is one of the end point of a segment.
         if (xvalue <= self.getLeftPoint().getX()) or (xvalue >= self.getRightPoint().getX()):
@@ -211,12 +215,12 @@ class Segment(object):
         rseg.setAttr('edgeid', str(rseg.getAttrByName('edgeid')) + "." + str(2))
         return lseg,rseg
 
-    def split_at_multiple_x(self,xvalue_list):
+    def split_at_multiple_x(self,xvalue_list,doround=False):
 
         splits =[]
         curseg = self
         for xval in xvalue_list:
-            segl,segr = curseg.split_at_x(xval)
+            segl,segr = curseg.split_at_x(xval,doround)
             if segl is not None:
                 splits.append(segl)
                 curseg = segr
@@ -310,6 +314,27 @@ class Polygon(object):
             for side in self.getSides():
                 st += str(side)
             return "Polygon:" + st
+
+    def get_vertices(self):
+        '''
+        :return: a list of vertices ordered in the same order of segments/vertices in this polygon.
+        '''
+        if self.vertices:
+            return [(p.getX(),p.getY()) for p in self.vertices]
+        if self.sides():
+            vertices =[]
+            segments = self.sides()
+            for idx in xrange(0,len(segments),2):
+                x1, y1, x2, y2 = segments[idx].co_ordinates()
+                if segments[idx].getAttrByName("isswapped"):
+                    vertices +=[(x2,y2),(x1,y1)]
+                else:
+                    vertices +=[(x1,y1),(x2,y2)]
+            if len(segments) % 2 == 0: #len is even
+                vertices +=[vertices[0]]
+            return vertices
+
+        return []
 
     def setSidesAttr(self,list_attr_dict):
         '''one to one correspoindance from side of this polygon to attribute dictionary in the
@@ -581,9 +606,11 @@ class Polygon(object):
         return abs(lra-rla)/float(2)
 
     def vertical_sweeplines(self):
+        '''
+        :return: a dictionary whose key is xvalue, and value is
+        'index' of xvalue in sorted array.
+        '''
         import collections
-        '''retuns a dictionary whose key is xvalue, and value is 
-        'index' of xvalue in sorted array.'''
         if self.vertices:
             xunik = sorted(set([p.getX() for p in self.vertices]))
         elif self.getSides():
@@ -638,7 +665,7 @@ class Polygon(object):
         return newpoly
 
 
-    def split_sides_at_x(self):
+    def split_sides_at_x(self,doround=False):
         temppoly = Polygon([])
         xunikdic = self.vertical_sweeplines()
         sides = self.sides()
@@ -649,10 +676,8 @@ class Polygon(object):
             li = xunikdic[seg.getLeftPoint().getX()]
             hi = xunikdic[seg.getRightPoint().getX()]
 
-            splits=seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi])
+            splits=seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi],doround)
             all_splits +=splits
-            for sp in splits:
-                print"\t", sp
             temppoly.setPropertyByName('split_counts',len(splits)) #segment's split count
 
         newpoly = temppoly.from_segment_objects(all_splits)
@@ -763,7 +788,7 @@ class Polygon(object):
                 count+=1
 
             xcolumn_yblock_dic[xkey] =ypairs_dic
-            #count of splits/yblocks in each of vcolumns (x1-x2)
+            #count of splits, yblocks in each of vcolumns (x1-x2)
             count_vcols_nsplits_yblocks[xkey] = (len(list_yblocks),count)
 
             if debug:
@@ -794,6 +819,14 @@ class Polygon(object):
                     if ylow <= y2 and y1 <= yhigh:
                         xcolumn_yblocks[yblock][seg.dictentry_linehashkey()] = [x1,y1,x2,y2]
 
+        xkey_max_seg_holding={}
+        for x,dyb in xcolumn_yblock_dic.items():
+            max_holding = -sys.maxint
+            for yb, sd in dyb.items():
+                max_holding = max(max_holding,len(sd))
+                xkey_max_seg_holding[x] = max_holding
+        self.setPropertyByName("xkey_max_seg_holding",xkey_max_seg_holding)
+
         return xcolumn_yblock_dic
 
 
@@ -804,7 +837,7 @@ class Polygon(object):
         for seg in self.sides():
             p1,p2 = seg.origco_ordinates()
             L.append([pid] + list(p1.totuple()) + list(p2.totuple()) + [0,0,0])
-        print L
+
         INF = util.POLYGON_OUTSIDEID
         for ti in range(len(L)):  # each tuple-index
             t = L[ti]  # [rid,x1,y1,x2,y2,iswp?,rid-left,rid-right,isvisited?]
@@ -878,13 +911,18 @@ class SQDM:
     @classmethod
     def test1(self):
         #Driver to Test Polygon
-
+        doround=False
         poly24 = [(6.81,5.05), (3.98,3.95), (4.98,2.02), (2.00,0.97), (0.58,3.88), (2.00,3.86), (3.00,4.96), (3.00,6.26)] #collinear, revisited twice.
 
         pobj2 = [(3.0, 6.0), (4.0, 5.0), (2.0, 4.0), (1.0, 4.0),
                  (2.0, 1.0), (5.0, 1.0), (4.0, 4.0), (7.0, 5.0)]
 
-        #pobj2 = [(7, 5), (7, 3), (7, 1), (2, 1.00), (1, 4), (1, 5), (1, 6), (3, 6)] #with vertical lines.
+        pobj2 = [(7, 5), (7, 3), (7, 1), (2, 1.00), (1, 4), (1, 5), (1, 6), (3, 6)] #with vertical lines.
+        #with v.lines
+        #pobj2 = [(2, 8), (6, 6), (4, 4), (2, 0), (4, 2), (6, 4), (10, 8), (10, 6), (8, 4), (8, 0), (10, 2), (16, 0),
+        #(14, 2), (12, 4), (14, 8), (18, 6), (16, 4), (16, 2), (18, 0), (20, 2), (20, 4),
+        #         (20, 6), (18, 10), (16, 8), (12, 10), (14, 14), (12, 12), (10, 14), (6, 14), (6, 12), (4, 10)]
+
         '''pobj2 =[(1002451148, 2157155400), (1002985974, 2156979255), (1002949639, 2157027380),
                 (1002934867, 2157037231), (1002863289, 2157053914), (1002817837, 2157080433),
                 (1002809521, 2157109224), (1002785398, 2157118993), (1002737353, 2157112525),
@@ -903,31 +941,34 @@ class SQDM:
 
         #save polygon
         seg_dict = pobj2.tosegsdict()
-        self.save(seg_dict,"../out/tmp/Po.json") #original
+        self.save(seg_dict,"../out/tmp/vPo.json") #original
 
         ##split polygon and make 2D grids.
-        split_poly = pobj2.split_sides_at_x()
+        split_poly = pobj2.split_sides_at_x(doround=False)
 
         #save polygon
         seg_dict = split_poly.tosegsdict()
-
-
-        self.save(seg_dict,"../out/tmp/Ps.json",dosort=False) #splits do not sort by keys.
+        self.save(seg_dict,"../out/tmp/vPs.json",dosort=False) #splits do not sort by keys.
 
         xcolumns_yblocks_dic = split_poly.xcolumns_yblocks()
         mapped_segments_xcolumn_yblock_dic = split_poly.segment_mapping_to_yblocks(xcolumns_yblocks_dic)
-
+        '''
         if debug:
             for xkey,yblocks in mapped_segments_xcolumn_yblock_dic.items():
                 print xkey
                 for yblock in yblocks:
                     print("\t"),"key:",yblock, "values:",yblocks[yblock]
+        '''
 
         #save dictionary sqdm.
         print type(split_poly.getProperties())
-
-        self.save(split_poly.getProperties(),"../out/tmp/Psqdm_prop.json")
-        self.save(mapped_segments_xcolumn_yblock_dic,"../out/tmp/Psqdm.json")
+        util.poly_ptstoshp(pobj2.get_vertices(), "../out/tmp/vPo")
+        if doround:
+            util.poly_ptstoshp(split_poly.get_vertices(),"../out/tmp/vPs.int")
+        else:
+            util.poly_ptstoshp(split_poly.get_vertices(), "../out/tmp/vPs")
+        self.save(split_poly.getProperties(),"../out/tmp/vPsqdm_prop.json")
+        self.save(mapped_segments_xcolumn_yblock_dic,"../out/tmp/vPsqdm.json")
 
         return mapped_segments_xcolumn_yblock_dic
 
@@ -988,6 +1029,13 @@ class SQDM:
 
         ##split polygon and make 2D grids.
         usa_split_poly=usa_polygon.split_sides_at_x()
+        seg_dict = usa_split_poly.tosegsdict()
+
+        util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/USA")
+        util.poly_ptstoshp(usa_split_poly.get_vertices(), "../out/tmp/USA.int")
+        util.save(seg_dict, "../out/tmp/2USAs.json")
+
+        return  0
         print("completed splitting us map.")
         print("minx"),usa_split_poly.getPropertyByName("minx")
         print("maxx"),usa_split_poly.getPropertyByName("maxx")
@@ -996,13 +1044,14 @@ class SQDM:
         xcolumns_yblocks_dic = usa_split_poly.xcolumns_yblocks()
         segment_mapped_xcolumn_yblock_dic = usa_split_poly.segment_mapping_to_yblocks(xcolumns_yblocks_dic)
 
-        for xkey,yblocks in segment_mapped_xcolumn_yblock_dic.items()[0:5]:
+        for xkey,yblocks in segment_mapped_xcolumn_yblock_dic.items()[0:2]:
             print xkey
             for yblock in yblocks:
                 print("\t"),"key:",yblock, "values:",yblocks[yblock]
 
-        util.save(usa_split_poly.getProperties(),"../out/tmp/usa_sqdm_properties.json")
-        util.save(segment_mapped_xcolumn_yblock_dic, "../out/tmp/usa_sqdm.json")
+
+        util.save(usa_split_poly.getProperties(),"../out/tmp/2USA_sqdm_prop.json")
+        util.save(segment_mapped_xcolumn_yblock_dic, "../out/tmp/2USA_sqdm.json")
 
 #SQDM.test1()
 #SQDM.test2()
