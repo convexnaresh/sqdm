@@ -1355,7 +1355,7 @@ class TestMapProcess:
             pp = copy.deepcopy(polypts)
             self.mp.poly_ptstoshp(polypts, shpoutfilename)
             return 0
-            #self.mp.poly_ptstoshp(polypts, shpoutfilename,save_as_multipt=True)
+            self.mp.poly_ptstoshp(polypts, shpoutfilename,save_as_multipt=True)
             print("number of pts in polygon:"),len(polypts)
             outsplitmapfile = "../out/tmp/"+app+"_us_splitmap"  # can be viewed in https://mapshaper.org/
             if roundtoint:

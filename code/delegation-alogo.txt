@@ -1,0 +1,51 @@
+Algorithm: Sqdm
+Input: P, AV, OWNER_ID 
+	#P: set of segments in counter-clockwise direction forming non-intersected polygon.
+		Each segment's interior to P is marked by OWNER_ID and encoded by AV, assignment vector.
+	#OWNER_ID: Address of an owner of P.
+
+Return: SQDM instance, a 2D description of P.
+
+	1. top_bottom_labeling(P.Segments,AV) #polygon
+	2. Ps = split(P.Segments, P.Segments.X) #splits of P.
+	3. templateSqdm = templateSQDM(Ps.Segments) #templateSqdm for Ps
+	4. Psqdm = map(Ps.Segments, templateSQDM)
+
+Algorithm: Delegation
+Input: Psqdm, C, AV, OWNER_ID, DELEGATED_TO
+	#Psqdm: a 2D description of an input polygon P which is partially owned by OWNER_ID Address.
+	#C : Child polygon to be constructed inside region owned by OWNER_ID Address
+		Each segments in C.Segments completely falls inside region owned by OWNER_ID Address
+		C forms a closed polygon
+		C is a simple polygon
+	#AV: assignment vector that describes that interior to C is delegated to DELEGATED_TO Address
+	#
+Return: Psqdm with embeded C in it, which is owned by DELEGATED_TO
+
+	1. SET_ADDR_EQUIVALANCE(OWNER_ID,DELEGATED_TO)
+		1.1. top_bottom_labeling(C.Segments,AV)
+		
+		
+	2. Pslicesqdm = slice(C.MinX,C.MaxX, Psqdm) #slice of Psqdm overlapped by C
+	3. ftC = fitable(C.Segments,Pslicesqdm) #fitable segments derived from C by splittingat at x=Pslicesqdm.X + CSegments.X, and then at Pslicesqdm.Y
+			3.1. Csx = {Ss = split(C.Segment,C.Segments.X + Pslicesqdm.XKeys)} #split each segment in C at x.
+			3.2. <Csx,X> = {Si,Xi = VcolumnMapings(Csx.Segment,Pslicesqdm.XKeys)} #map each segment in Csx to a vertical column in Pslicesqdm.
+			3.2. Csxy = {Ss = split(Csx.Segment, Pslicesqdm[Cs.Segment->X].Ykeys } #split each segment in <Csx,X> in a vertical column X at y in Pslicesqdm.Ykeys.
+			3.3. ftC <- Csxy #return fitable Segments derived for C.
+			
+
+	4. fixableYblocks<(xi,xj),[yi,yj]> = { xi,xj,yi,yj = map(ftC.Segment, Pslicesqdm)} #for each Segment in ftC, find a containing rectangle (xi,xj,yi,yj) in Pslicesqdm
+
+	5. {split_inplace(Pslicesqdm.fixableYblock.Segments, Pslicesqdm.fixableYblock.Segments.X)} #split all segments in mesh correspoinding to box in fixableYblock.
+
+	6. templateSqdms<fixableYblock,template_sqdm> = {<yblock,template_sqdm> = templateSQDM(Pslicesqdm.fixableYblock.Segments)}
+
+	7. mappedtemplateSqdms<fixableYblock,template_sqdm> = {<yblock,template_sqdm> = map_inplace(Pslicesqdm.fixableYblock.Segments,templateSqdms.fixableYblock)} #inplace in templatesqdm.
+
+	8. LOCK_SQDM(C.MinX, C.MaxX)
+		8.1. Psqdm = {merge(mappedtemplateSqdms.fixableYblock.template_sqdm, Psqdm.fixableYblock)} #updated Psqdm after delegation.
+		8.2. BREAK_ADDR_EQUIVALANCE( OWNER_ID, DELEGATED_TO)
+		8.2. RELEASE_LOCK_SQDM(C.MinX, C.MaxX)
+
+
+

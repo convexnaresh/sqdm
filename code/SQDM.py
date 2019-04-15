@@ -77,7 +77,7 @@ class Segment(object):
         return s
 
     def ntuples_to_seg(self,ntuplevalues,tuplekeys):
-        if len(ntuplevalues)<4 or (len(tuplekeys) != len(ntuplevalues)):
+        if len(ntuplevalues)< 4 or (len(tuplekeys) != len(ntuplevalues)):
             return None
 
         attr = {}
@@ -168,14 +168,14 @@ class Segment(object):
 
         # for now that it would have been deleted already if not
         if m == 0:  # horizontal segment
-            return p
+            return None
         # ditto; should check if y-val on seg
         if m is None:  # vertical segment
-            return (self.lp.x, p[1])
+            return Point((self.lp.x, p[1]))
         x1 = self.lp.x - (self.lp.y - p[1]) / m
         # this should check if p's x-val is actually on seg; we're assuming
         if self.lp.x <= x1 <= self.rp.x:
-            return (x1, p[1])
+            return Point((x1, p[1]))
         return None
 
     # given a point p, return the point on s that shares p's x-val
@@ -208,6 +208,22 @@ class Segment(object):
         #left split
         lseg = copy.deepcopy(self)
         lseg.rp = splitpt
+        lseg.setAttr('edgeid',str(lseg.getAttrByName('edgeid')))#+"."+str(1))
+        #right split
+        rseg = copy.deepcopy(self)
+        rseg.lp = splitpt
+        rseg.setAttr('edgeid', str(rseg.getAttrByName('edgeid'))) #+ "." + str(2))
+        return lseg,rseg
+
+    def split_at_y(self,ypoint,doround=False):
+        import copy
+        splitpt = self.get_x_at(ypoint)
+        if splitpt is None or (splitpt == self.lp or splitpt == self.rp):
+            return None,None
+
+        #left split
+        lseg = copy.deepcopy(self)
+        lseg.rp = splitpt
         lseg.setAttr('edgeid',str(lseg.getAttrByName('edgeid'))+"."+str(1))
         #right split
         rseg = copy.deepcopy(self)
@@ -221,6 +237,28 @@ class Segment(object):
         curseg = self
         for xval in xvalue_list:
             segl,segr = curseg.split_at_x(xval,doround)
+            if segl is not None:
+                splits.append(segl)
+                curseg = segr
+        #append last part.
+        splits.append(curseg)
+
+        if debug:
+            print("splitting "), str(self)
+            for sp in splits:
+                print("\t split"),str(sp)
+
+        #reverse lists if necessary.
+        if self.getAttrByName('isswapped') ==1:
+            splits.reverse()
+        return splits
+
+    def split_at_multiple_y(self,yvalue_list,doround=False):
+
+        splits =[]
+        curseg = self
+        for yval in yvalue_list:
+            segl,segr = curseg.split_at_y((0,yval),doround)
             if segl is not None:
                 splits.append(segl)
                 curseg = segr
@@ -271,7 +309,7 @@ class Polygon(object):
     1) po = Polygon([(x1,y1),(x2,y2)...(xn,yn)]), where the list of tuples represents a points (x,y) in the polygon.
     2) po = Polygon([po1,po2,po3..pon]), where list of Point objects represents points in the polygon. 
     3) po = Polygon([])'''
-    def __init__(self, list_pts,pid=None):
+    def __init__(self, list_pts=[],pid=None):
         # polygon is set of Points
         if len(list_pts) >=3:
             #polygon with Point obj as vertices
@@ -302,6 +340,10 @@ class Polygon(object):
         self.properties={}
         self._sides =[]
         self._sides_attr=[]
+
+    def __len__(self):
+        if self.nv < 0:
+            return len(self._sides)
 
     def __str__(self):
         st = ''
@@ -477,7 +519,7 @@ class Polygon(object):
                 if segment_id_type in [SEGMENT_ID_TYPES['lineid'], SEGMENT_ID_TYPES['lineid']]:
 
                     #entry = {seg.attr['edgeid'] : seg.dictentry_value()}
-                    seg_dictionary[seg.attr['edgeid']] =seg.dictentry_value()
+                    seg_dictionary[seg.attr['edgeid']] = seg.dictentry_value()
 
         elif self.sides:
             for seg in self.sides():
@@ -878,7 +920,7 @@ class SQDM:
                 self.keys[idx] = k
 
     def get_ordered_keys(self,xvals):
-        xvals= sorted(set(xvals))
+        xvals = sorted(set(xvals))
         dictxvals = OrderedDict()
         for idx,key in enumerate(xvals):
             dictxvals[key] = idx
@@ -917,11 +959,11 @@ class SQDM:
         pobj2 = [(3.0, 6.0), (4.0, 5.0), (2.0, 4.0), (1.0, 4.0),
                  (2.0, 1.0), (5.0, 1.0), (4.0, 4.0), (7.0, 5.0)]
 
-        pobj2 = [(7, 5), (7, 3), (7, 1), (2, 1.00), (1, 4), (1, 5), (1, 6), (3, 6)] #with vertical lines.
+        #pobj2 = [(7, 5), (7, 3), (7, 1), (2, 1.00), (1, 4), (1, 5), (1, 6), (3, 6)] #with vertical lines.
         #with v.lines
         #pobj2 = [(2, 8), (6, 6), (4, 4), (2, 0), (4, 2), (6, 4), (10, 8), (10, 6), (8, 4), (8, 0), (10, 2), (16, 0),
         #(14, 2), (12, 4), (14, 8), (18, 6), (16, 4), (16, 2), (18, 0), (20, 2), (20, 4),
-        #         (20, 6), (18, 10), (16, 8), (12, 10), (14, 14), (12, 12), (10, 14), (6, 14), (6, 12), (4, 10)]
+                 #(20, 6), (18, 10), (16, 8), (12, 10), (14, 14), (12, 12), (10, 14), (6, 14), (6, 12), (4, 10)]
 
         '''pobj2 =[(1002451148, 2157155400), (1002985974, 2156979255), (1002949639, 2157027380),
                 (1002934867, 2157037231), (1002863289, 2157053914), (1002817837, 2157080433),
@@ -941,14 +983,15 @@ class SQDM:
 
         #save polygon
         seg_dict = pobj2.tosegsdict()
-        self.save(seg_dict,"../out/tmp/vPo.json") #original
+        self.save(seg_dict,"../out/tmp/aPo.json") #original
 
         ##split polygon and make 2D grids.
         split_poly = pobj2.split_sides_at_x(doround=False)
 
+        print("verties of split poly"), split_poly.get_vertices()
         #save polygon
         seg_dict = split_poly.tosegsdict()
-        self.save(seg_dict,"../out/tmp/vPs.json",dosort=False) #splits do not sort by keys.
+        self.save(seg_dict,"../out/tmp/aPs.json",dosort=False) #splits do not sort by keys.
 
         xcolumns_yblocks_dic = split_poly.xcolumns_yblocks()
         mapped_segments_xcolumn_yblock_dic = split_poly.segment_mapping_to_yblocks(xcolumns_yblocks_dic)
@@ -962,13 +1005,13 @@ class SQDM:
 
         #save dictionary sqdm.
         print type(split_poly.getProperties())
-        util.poly_ptstoshp(pobj2.get_vertices(), "../out/tmp/vPo")
+        util.poly_ptstoshp(pobj2.get_vertices(), "../out/tmp/aPo")
         if doround:
-            util.poly_ptstoshp(split_poly.get_vertices(),"../out/tmp/vPs.int")
+            util.poly_ptstoshp(split_poly.get_vertices(),"../out/tmp/aPs.int")
         else:
-            util.poly_ptstoshp(split_poly.get_vertices(), "../out/tmp/vPs")
-        self.save(split_poly.getProperties(),"../out/tmp/vPsqdm_prop.json")
-        self.save(mapped_segments_xcolumn_yblock_dic,"../out/tmp/vPsqdm.json")
+            util.poly_ptstoshp(split_poly.get_vertices(), "../out/tmp/aPs")
+        self.save(split_poly.getProperties(),"../out/tmp/aPsqdm_prop.json")
+        self.save(mapped_segments_xcolumn_yblock_dic,"../out/tmp/aPsqdm.json")
 
         return mapped_segments_xcolumn_yblock_dic
 
@@ -997,7 +1040,7 @@ class SQDM:
         return mapped_segments_xcolumn_yblock_dic
 
     @classmethod
-    def test2(self):
+    def test_usa_sqdm(self):
         ##use usa polygon
         import numpy as np
         home = "D:/workspace/sqdm-repo/sqdm/out/tmp"
@@ -1031,11 +1074,11 @@ class SQDM:
         usa_split_poly=usa_polygon.split_sides_at_x()
         seg_dict = usa_split_poly.tosegsdict()
 
-        util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/USA")
-        util.poly_ptstoshp(usa_split_poly.get_vertices(), "../out/tmp/USA.int")
-        util.save(seg_dict, "../out/tmp/2USAs.json")
+        util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/2USA")
+        util.poly_ptstoshp(usa_split_poly.get_vertices(), "../out/tmp/2USA.int")
+        util.save(seg_dict, "../out/tmp/2USAs.json") #segment dictionary
 
-        return  0
+
         print("completed splitting us map.")
         print("minx"),usa_split_poly.getPropertyByName("minx")
         print("maxx"),usa_split_poly.getPropertyByName("maxx")
@@ -1052,7 +1095,44 @@ class SQDM:
 
         util.save(usa_split_poly.getProperties(),"../out/tmp/2USA_sqdm_prop.json")
         util.save(segment_mapped_xcolumn_yblock_dic, "../out/tmp/2USA_sqdm.json")
+    @classmethod
+    def get_usa_state_boundary_by_name(self,state_name):
+        ##use usa polygon
+        import numpy as np
+        home = "D:/workspace/sqdm-repo/sqdm/"
+        infile1 = home + "/states.prj.lbl.txn.int.txt"
+        arr = np.genfromtxt(infile1,dtype='str')
+        arr = arr[:, :]#.astype(np.dtype('int64'))
+        print arr.shape
+        segments = tuple(arr)
+        state_polygon = Polygon([])
+        edgeid = 0
+        for seg in segments:
+            if str(seg[0]) == state_name:
+                attr = {}
+                lpoint = Point(seg[1:3].astype(np.dtype('int64')))
+                rpoint = Point(seg[3:5].astype(np.dtype('int64')))
+                isswp = int(seg[5])
+                attr['edgeid'] = edgeid
+
+                if isswp:
+                    segObj = Segment(rpoint,lpoint,attr)
+                else:
+                    segObj = Segment(lpoint, rpoint, attr)
+
+                state_polygon.addSegment(segObj)
+                edgeid +=1
+            #else continue
+
+        seg_dict = state_polygon.tosegsdict()
+        print("len state-polygon"),len(state_polygon)
+        #util.poly_ptstoshp(state_polygon.get_vertices(), "../out/tmp/"+state_name+".int")
+        #util.save(seg_dict, "../out/tmp/"+state_name+".json") #segment dictionary
+
+        return state_polygon
+
 
 #SQDM.test1()
-#SQDM.test2()
+SQDM.test_usa_sqdm()
 #SQDM.test3()
+#SQDM.get_usa_state_boundary_by_name("CALIFORNIA")

@@ -282,3 +282,20 @@ def range_search(arr, x):
 print("range search as binary search")
 ar =[1,2,6,7,8]
 print range_search(ar,1.5)
+
+
+# given a point p, return the point on s that shares p's y-val
+def get_x_at(self, p):
+    m = self.get_slope()
+
+    # for now that it would have been deleted already if not
+    if m == 0:  # horizontal segment
+        return p
+    # ditto; should check if y-val on seg
+    if m is None:  # vertical segment
+        return (self.lp.x, p[1])
+    x1 = self.lp.x - (self.lp.y - p[1]) / m
+    # this should check if p's x-val is actually on seg; we're assuming
+    if self.lp.x <= x1 <= self.rp.x:
+        return (x1, p[1])
+    return None

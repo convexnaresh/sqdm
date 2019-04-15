@@ -190,12 +190,12 @@ def load_sqdm_from_file(infile,typecast=[]):
     for ext in ['.json','.pickle']:
         try:
             with open(infile + ext, 'r') as fp:
-                data = json.load(fp,object_pairs_hook=OrderedDict)
+                data = json.load(fp, object_pairs_hook=OrderedDict)
         except:
             continue
 
     #type conversion
-    newdata ={}
+    newdata = OrderedDict()
     for k1, dv1 in data.items():
         newdata[float(k1)] = OrderedDict()
 
@@ -210,11 +210,12 @@ def load_from_file(infile,typecast=[]):
     infile = infile.replace(".json",'')
     infile = infile.replace(".p",'')
     infile = infile.replace(".pickle",'')
-    for ext in ['.json','.pickle']:
+    for ext in ['.json', '.pickle']:
         try:
             with open(infile + ext, 'r') as fp:
-                data = json.load(fp,object_pairs_hook=OrderedDict)
-        except:
+                data = json.load(fp, object_pairs_hook=OrderedDict)
+        except Exception, e:
+            print(""), str(e)
             continue
 
     tmp = OrderedDict()

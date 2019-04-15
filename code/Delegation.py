@@ -100,6 +100,24 @@ class Delegation:
             mesh_splits +=splits
         return mesh_splits
 
+    def split_mesh_side_at_y(self,seg, yunikdict):
+
+        '''splits a given random set of segments at xunikdic values.
+        yunikdict must be an ordred dictionary of y-values with xkey:index, index is the
+        index of xkey in sorted list.
+        sides:Type Segment list
+        yunikdict: Type Dictionary of sorted <x-value,index>
+        retun: Type Segment object seg'''
+        # split seg
+        # 1)get x-values at which split must take place
+        li = yunikdict[seg.getLeftPoint().getY()]
+        hi = yunikdict[seg.getRightPoint().getY()]
+        #splits=seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi])
+        #mesh_splits +=splits
+        #return mesh_splits
+        return yunikdict.keys()[li + 1:hi]
+
+
     def slice_sqdm(self,lowkey,highkey,sqdm_dic):
         '''returns all dictionary keys between lower key (inclusive) and higher key (exclusive).
         This is a interval overlapping search problem. One can implement range search using RangeTrees.
@@ -220,6 +238,7 @@ class Delegation:
         C_splitsPuC = delegation.split_mesh_sides_at_x(C_segments, SQDM().get_ordered_keys(PuCkeys))
         print len(C_segments), len(C_splitsPuC)
 
+        ##
         UnionSplits = C_splitsPuC + P_slice_splitsPuC
 
         templateMerged_Sqdm = delegation.xcolumns_yblocks(UnionSplits,PuCkeys) #
