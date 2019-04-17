@@ -1377,7 +1377,7 @@ class TestMapProcess:
         xlist = [[t[0], t[2]] for t in segs]
         xlist = [x for sublist in xlist for x in sublist]
         xun = sorted(set(xlist))
-        #self.mp.save_xun_asshp(xun,xunshpoutfilename,stats["map-extent"])
+        self.mp.save_xun_asshp(xun,xunshpoutfilename,stats["map-extent"])
 
         print("len(segs),xmax,xmin,len(xun)"), len(segs),max(xun),min(xun),len(xun)
         stats["n(unique-X-values)"] = len(xun)

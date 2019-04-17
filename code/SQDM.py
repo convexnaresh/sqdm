@@ -162,7 +162,7 @@ class Segment(object):
             return float(y1 - y0) / (x1 - x0)
 
     # given a point p, return the point on s that shares p's y-val
-    def get_x_at(self, p):
+    def get_x_at(self, p, doround=False):
 
         m = self.get_slope()
 
@@ -172,7 +172,12 @@ class Segment(object):
         # ditto; should check if y-val on seg
         if m is None:  # vertical segment
             return Point((self.lp.x, p[1]))
-        x1 = self.lp.x - (self.lp.y - p[1]) / m
+
+        if doround:
+            x1 = int(round(self.lp.x - (self.lp.y - p[1]) / m))
+        else:
+            x1 = self.lp.x - (self.lp.y - p[1]) / m
+
         # this should check if p's x-val is actually on seg; we're assuming
         if self.lp.x <= x1 <= self.rp.x:
             return Point((x1, p[1]))
@@ -217,18 +222,18 @@ class Segment(object):
 
     def split_at_y(self,ypoint,doround=False):
         import copy
-        splitpt = self.get_x_at(ypoint)
+        splitpt = self.get_x_at(ypoint,doround)
         if splitpt is None or (splitpt == self.lp or splitpt == self.rp):
             return None,None
 
         #left split
         lseg = copy.deepcopy(self)
         lseg.rp = splitpt
-        lseg.setAttr('edgeid',str(lseg.getAttrByName('edgeid'))+"."+str(1))
+        lseg.setAttr('edgeid',str(lseg.getAttrByName('edgeid')))#+"."+str(1))
         #right split
         rseg = copy.deepcopy(self)
         rseg.lp = splitpt
-        rseg.setAttr('edgeid', str(rseg.getAttrByName('edgeid')) + "." + str(2))
+        rseg.setAttr('edgeid', str(rseg.getAttrByName('edgeid'))) #+ "." + str(2))
         return lseg,rseg
 
     def split_at_multiple_x(self,xvalue_list,doround=False):
@@ -399,6 +404,31 @@ class Polygon(object):
     def getSides(self):
         return self._sides
 
+    def polygon_extent(self,segs=None):
+        xvals = []
+        yvals = []
+        if segs == None:
+            segs = self.sides()
+        for t in segs:
+            x1,y1,x2,y2 = t.co_ordinates() #xvals += [t[0], t[2]]
+            xvals +=[x1,x2]
+            yvals += [y1,y2]
+
+        xmax, xmin, ymax, ymin = max(xvals), min(xvals), max(yvals), min(yvals)
+        return [(xmin,ymin),(xmax,ymax)]
+
+    def slice_poly(self,nsegments):
+        '''get only nsegments of this polygon.'''
+        slicePoly = Polygon([])
+        cnt =0
+        for seg in self.sides()[2300:]:
+            if  cnt < nsegments:
+                slicePoly.addSegment(seg)
+                cnt +=1
+
+        return slicePoly
+
+
     def compute_properties(self):
         minx,maxx = self.minx_maxx()
         self.setPropertyByName('minx',minx)
@@ -514,7 +544,11 @@ class Polygon(object):
 
                 if segment_id_type == SEGMENT_ID_TYPES['linehash']:
                     #entry = {seg.dictentry_linehashkey(): seg.dictentry_value()}
-                    seg_dictionary[seg.dictentry_linehashkey()] = seg.dictentry_value()
+                    try:
+                        #checking segment collision.
+                        seg_dictionary[seg.dictentry_linehashkey()]
+                    except:
+                        seg_dictionary[seg.dictentry_linehashkey()] = seg.dictentry_value()
 
                 if segment_id_type in [SEGMENT_ID_TYPES['lineid'], SEGMENT_ID_TYPES['lineid']]:
 
@@ -525,7 +559,11 @@ class Polygon(object):
             for seg in self.sides():
                 if segment_id_type == SEGMENT_ID_TYPES['linehash']:
                     #entry = {seg.dictentry_linehashkey(): seg.dictentry_value()}
-                    seg_dictionary[seg.dictentry_linehashkey()] = seg.dictentry_value()
+                    try:
+                        #checking segment collision.
+                        seg_dictionary[seg.dictentry_linehashkey()]
+                    except:
+                        seg_dictionary[seg.dictentry_linehashkey()] = seg.dictentry_value()
 
                 if segment_id_type in [SEGMENT_ID_TYPES['lineid'], SEGMENT_ID_TYPES['lineid']]:
                     seg_dictionary[seg.attr['edgeid']] =seg.dictentry_value()
@@ -718,8 +756,8 @@ class Polygon(object):
             li = xunikdic[seg.getLeftPoint().getX()]
             hi = xunikdic[seg.getRightPoint().getX()]
 
-            splits=seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi],doround)
-            all_splits +=splits
+            splits = seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi],doround)
+            all_splits += splits
             temppoly.setPropertyByName('split_counts',len(splits)) #segment's split count
 
         newpoly = temppoly.from_segment_objects(all_splits)
@@ -986,12 +1024,12 @@ class SQDM:
         self.save(seg_dict,"../out/tmp/aPo.json") #original
 
         ##split polygon and make 2D grids.
-        split_poly = pobj2.split_sides_at_x(doround=False)
+        split_poly = pobj2.split_sides_at_x(doround=True)
 
         print("verties of split poly"), split_poly.get_vertices()
         #save polygon
         seg_dict = split_poly.tosegsdict()
-        self.save(seg_dict,"../out/tmp/aPs.json",dosort=False) #splits do not sort by keys.
+        self.save(seg_dict,"../out/tmp/aPs.json",dosort=True) #splits do not sort by keys.
 
         xcolumns_yblocks_dic = split_poly.xcolumns_yblocks()
         mapped_segments_xcolumn_yblock_dic = split_poly.segment_mapping_to_yblocks(xcolumns_yblocks_dic)
@@ -1058,8 +1096,8 @@ class SQDM:
             lpoint = Point(seg[0:2])
             rpoint = Point(seg[2:4])
             isswp = seg[4]
-            attr['region_abv'] = seg[5]
-            attr['region_bel'] = seg[6]
+            attr['abv'] = seg[5]
+            attr['bel'] = seg[6]
             attr['edgeid'] = edgeid
 
             if isswp:
@@ -1071,7 +1109,7 @@ class SQDM:
             edgeid +=1
 
         ##split polygon and make 2D grids.
-        usa_split_poly=usa_polygon.split_sides_at_x()
+        usa_split_poly = usa_polygon.split_sides_at_x(doround=True)
         seg_dict = usa_split_poly.tosegsdict()
 
         util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/2USA")
@@ -1124,7 +1162,6 @@ class SQDM:
                 edgeid +=1
             #else continue
 
-        seg_dict = state_polygon.tosegsdict()
         print("len state-polygon"),len(state_polygon)
         #util.poly_ptstoshp(state_polygon.get_vertices(), "../out/tmp/"+state_name+".int")
         #util.save(seg_dict, "../out/tmp/"+state_name+".json") #segment dictionary

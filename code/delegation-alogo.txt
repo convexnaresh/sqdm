@@ -47,5 +47,18 @@ Return: Psqdm with embeded C in it, which is owned by DELEGATED_TO
 		8.2. BREAK_ADDR_EQUIVALANCE( OWNER_ID, DELEGATED_TO)
 		8.2. RELEASE_LOCK_SQDM(C.MinX, C.MaxX)
 
+		
+Execution Log.
 
-
+ [Errno 2] No such file or directory: '../out/tmp/2USAs.pickle'
+(139811, 8)
+len state-polygon 4382
+len(Pssegs),len(Csegs) 627084 4382
+Completed Slicing sqdm for Cpoly. len(Pslice_sqdm) 7615
+C.xmin, C.xmax 618829602 733248005
+Pslice.xmin,Pslice.xmax 618829602.0 733949668.0
+7615
+length(fitable-segments in Cpoly) 39285
+json data saved in  ../out/tmp/Pslicesegs.json
+json data saved in  ../out/tmp/Pslicesqdm.json
+json data saved in  ../out/tmp/ftCsegs.json

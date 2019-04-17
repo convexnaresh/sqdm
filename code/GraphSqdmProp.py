@@ -21,70 +21,6 @@ def load_data(infile):
     return data
 
 
-#sqdm_prop = load_data("../out/tmp/usa_sqdm_properties.json")
-sqdm_prop = load_data("../out/tmp/2USA_sqdm_prop.json")
-#sqdm_prop = load_data("../out/tmp/2Psqdm_prop.json")
-
-
-print sqdm_prop.keys()
-print max(sqdm_prop['xkey_max_seg_holding'].values())
-
-a =sqdm_prop["count_xcolumns_nsplits_yblocks"]
-dic_count_nsplit_nyblocks = OrderedDict(sorted(a.items())) #sort from lowkey to high key.
-
-seg_delx = sqdm_prop['seg_delx']
-seg_dely = sqdm_prop['seg_dely']
-unsignedseg_dely = [abs(int(dely)) for dely in seg_dely]
-seg_lengths = sqdm_prop['seg_lengths']
-split_count = sqdm_prop['split_counts']
-slopes = []
-for dely in seg_dely:
-    if dely <0:
-        slopes +=[2]
-    elif dely > 0:
-        slopes +=[4]
-    else:
-        slopes += [16]
-##
-cnyb = []
-cns = []
-for xkey,ns_nyb in dic_count_nsplit_nyblocks.items():
-    ns, nyb = ns_nyb
-    cnyb +=[nyb]
-    cns +=[ns]
-
-print max(cns),min(cns), max(cnyb), min(cnyb)
-
-x = cns
-
-figtitle="Histogram-Segment's split counts"+"(N="+str(len(x))+")"
-figtitle="Histogram-Segment's X-spans"+"(N="+str(len(x))+")"
-figtitle="Histogram-Segment Lengths"+"(N="+str(len(x))+")"
-figtitle="Histogram-Number Of Y-Blocks in Vertical Columns"+"(N="+str(len(x))+")"
-figtitle="Histogram-Number Of Splits Segments in Vertical Columns"+"(N="+str(len(x))+")"
-xvarname = "Segment's Length"
-xvarname = "Number of Y-Blocks"
-xvarname = "Number of Splits"
-print("max,min,len"), len(x), max(x), min(x)
-##
-nbins=10
-#x = [math.log((v+1),2) for v in x]
-
-N, bins, patches = plt.hist(x, color='#0504aa', alpha=0.7, rwidth=1, bins=nbins)
-fracs = N / N.max()
-# we need to normalize the data to 0..1 for the full range of the colormap
-norm = colors.Normalize(fracs.min(), fracs.max())
-# Now, we'll loop through our objects and set the color of each accordingly
-for thisfrac, thispatch in zip(fracs, patches):
-    color = plt.cm.viridis(norm(thisfrac))
-    thispatch.set_facecolor(color)
-plt.ylabel('Frequency')
-#plt.xlabel('$Log_2$'+'('+xvarname+')')
-plt.xlabel(xvarname)
-plt.title(figtitle)
-#plt.savefig("../out/tmp/"+figtitle+".png")
-#plt.show()
-
 def test():
     n=100
     N = len(cns[0:n])
@@ -193,3 +129,66 @@ def plot_cns_cnyb(cns,cnyb):
     plt.xlabel("Vertical Columns of X-Values")
     plt.savefig('../out/tmp/Bar-Diagram- # of Splits & # of Y-Blocks.png')
     plt.show()
+#sqdm_prop = load_data("../out/tmp/usa_sqdm_properties.json")
+sqdm_prop = load_data("../out/tmp/2USA_sqdm_prop.json")
+
+
+
+print sqdm_prop.keys()
+print max(sqdm_prop['xkey_max_seg_holding'].values())
+
+a =sqdm_prop["count_xcolumns_nsplits_yblocks"]
+dic_count_nsplit_nyblocks = OrderedDict(sorted(a.items())) #sort from lowkey to high key.
+
+seg_delx = sqdm_prop['seg_delx']
+seg_dely = sqdm_prop['seg_dely']
+unsignedseg_dely = [abs(int(dely)) for dely in seg_dely]
+seg_lengths = sqdm_prop['seg_lengths']
+split_count = sqdm_prop['split_counts']
+slopes = []
+for dely in seg_dely:
+    if dely <0:
+        slopes +=[2]
+    elif dely > 0:
+        slopes +=[4]
+    else:
+        slopes += [16]
+##
+cnyb = []
+cns = []
+for xkey,ns_nyb in dic_count_nsplit_nyblocks.items():
+    ns, nyb = ns_nyb
+    cnyb +=[nyb]
+    cns +=[ns]
+print("len xkey:ns,nyb"), dic_count_nsplit_nyblocks["625476645.0"]
+print("cns,cnyb"), max(cns), min(cns), max(cnyb), min(cnyb)
+
+x = cns
+
+figtitle="Histogram-Segment's split counts"+"(N="+str(len(x))+")"
+figtitle="Histogram-Segment's X-spans"+"(N="+str(len(x))+")"
+figtitle="Histogram-Segment Lengths"+"(N="+str(len(x))+")"
+figtitle="Histogram-Number Of Y-Blocks in Vertical Columns"+"(N="+str(len(x))+")"
+figtitle="Histogram-Number Of Splits Segments in Vertical Columns"+"(N="+str(len(x))+")"
+xvarname = "Segment's Length"
+xvarname = "Number of Y-Blocks"
+xvarname = "Number of Splits"
+print("max,min,len"), len(x), max(x), min(x)
+##
+nbins=10
+#x = [math.log((v+1),2) for v in x]
+
+N, bins, patches = plt.hist(x, color='#0504aa', alpha=0.7, rwidth=1, bins=nbins)
+fracs = N / N.max()
+# we need to normalize the data to 0..1 for the full range of the colormap
+norm = colors.Normalize(fracs.min(), fracs.max())
+# Now, we'll loop through our objects and set the color of each accordingly
+for thisfrac, thispatch in zip(fracs, patches):
+    color = plt.cm.viridis(norm(thisfrac))
+    thispatch.set_facecolor(color)
+plt.ylabel('Frequency')
+#plt.xlabel('$Log_2$'+'('+xvarname+')')
+plt.xlabel(xvarname)
+plt.title(figtitle)
+#plt.savefig("../out/tmp/"+figtitle+".png")
+#plt.show()

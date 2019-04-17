@@ -12,7 +12,6 @@ SQDM_DELEGATED_BY_ID = 777
 SQDM_DELEGATED_TO_ID= 444
 debug = True
 
-
 class Delegation:
     def __init__(self,delegated_dic={}):
 
@@ -93,6 +92,8 @@ class Delegation:
         else:
             # search along yblocks (y_i -- y_j)
             ykeys_tuples = sqdm[xkyes[xsearchidx]].keys()
+            if y1 > y2:
+                y1,y2 = y2,y1
             ysearchidx = self.yrange_search(ykeys_tuples, y1, y2)
             if ysearchidx < 0:
                 return None, None
@@ -126,6 +127,7 @@ class Delegation:
             mid = l + (r - l) / 2;
             # Check if x is present at mid
             # print mid
+
             if (arr[mid] <= search_key1 and search_key1 <= arr[mid + 1]) and \
                     (arr[mid] <= search_key2 and search_key2 <= arr[mid + 1]):
                 return mid
@@ -151,8 +153,10 @@ class Delegation:
         arr[i][0]<= search_key2 and arr[i][1] >=search_key2
         not found returns -1
         '''
+        if search_key1 > search_key2:
+            search_key1, search_key2 = search_key2, search_key1
+
         # range search
-        arr += arr[0:1]
         l = 0
         r = len(arr) - 1
 
@@ -165,7 +169,7 @@ class Delegation:
                 return mid
 
             # If x is greater, ignore left half
-            elif arr[mid] < search_key1:
+            elif arr[mid][0] < search_key1:
                 l = mid + 1
 
             # If x is smaller, ignore right half
@@ -176,7 +180,7 @@ class Delegation:
         return -1
 
 
-    def split_mesh_segs_at_x(self,mesh_segments, xunikdic):
+    def split_mesh_segs_at_x(self,mesh_segments, xunikdic,doround=False):
 
         '''splits a given random set of segments at xunikdic values.
         xunikdic must be an ordred dictionary of x-values with xkey:index, index is the
@@ -191,11 +195,11 @@ class Delegation:
             # 1)get x-values at which split must take place
             li = xunikdic[seg.getLeftPoint().getX()]
             hi = xunikdic[seg.getRightPoint().getX()]
-            splits=seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi])
+            splits = seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi],doround)
             mesh_splits +=splits
         return mesh_splits
 
-    def split_mesh_side_at_y(self,seg, yunikdict):
+    def split_mesh_side_at_y(self,seg, yunikdict,doround=False):
 
         '''splits a given random set of segments at xunikdic values.
         yunikdict must be an ordred dictionary of y-values with xkey:index, index is the
@@ -205,10 +209,16 @@ class Delegation:
         retun: Type Segment object seg'''
         mesh_splits=[]
         # split seg
-        # 1)get x-values at which split must take place
-        li = yunikdict[seg.getLeftPoint().getY()]
-        hi = yunikdict[seg.getRightPoint().getY()]
-        splits = seg.split_at_multiple_y(yunikdict.keys()[li + 1:hi])
+        # 1)get y-values at which split must take place
+        y1 = seg.getLeftPoint().getY()
+        y2 = seg.getRightPoint().getY()
+        if y1 > y2:
+            y1,y2 = y2, y1
+
+        li = yunikdict[y1]
+        hi = yunikdict[y2]
+
+        splits = seg.split_at_multiple_y(yunikdict.keys()[li + 1:hi],doround)
         mesh_splits +=splits
         return mesh_splits
         #return yunikdict.keys()[li + 1:hi]
@@ -372,7 +382,7 @@ class Delegation:
         return str(xkey) + "-" + str(yblock[0])+"-"+str(yblock[1]) + ".json"
 
     @classmethod
-    def test_dummy_poly_delegation(self):
+    def pre_process_dummy_polygon(self):
         from SQDM import Polygon
         delegation = Delegation()
         subsqdm_file = "../out/tmp/"
@@ -383,8 +393,10 @@ class Delegation:
 
         #Ca = [(3.6, 4.8), (3.8, 4.5),(3.6,4.2), (3.2,4),
         #(3.6,3.8),(3.8,3.6), (3.2,3.2),(3,3.6),(2.6,3.4),(2.8,3.8),(2.6,4), (3,4.2),(3.2,4.5)]
-        Ca = [(3.6, 4.8), (3.8, 4.6), (3.6, 4.2), (3.4, 4), (3.6, 3.8), (3.8, 3.6), (3.4, 3.2), (2.8, 3.6), (2.6, 3.4),
-         (2.8, 3.8), (2.6, 4)]
+        Ca = [(3.6, 4.8), (3.8, 4.6), (3.6, 4.2), (3.4, 4), (3.6, 3.8),
+                (3.8, 3.6), (3.4, 3.2),
+                (2.8, 3.6), (2.6, 3.4),
+                (2.8, 3.8), (2.6, 4)]
         Cpoly = Polygon(Ca)
         AV = Cpoly.label_bottom_up(util.POLYGON_INNERID)
         Cseg_dictionary = Cpoly.tosegsdict()
@@ -415,10 +427,17 @@ class Delegation:
 
 
         ##new code.
-        ##new segments are split at x-values unique to CPoly and that is overlapped by CPoly on Psqdm.
+        ##new segments are split at x-values unique to CPoly and that
+        # is overlapped by CPoly on Psqdm.
         #(Optimal: only at x-values unique to Psqdm.x values.)
         PuCxkeys = Cpoly.vertical_sweeplines().keys() + list(Pslice_sqdm.keys())
-        Csegs_splits_atx = delegation.split_mesh_segs_at_x(Cpoly.sides(), SQDM().get_ordered_keys(PuCxkeys))
+        Csegs_splits_atx = delegation.split_mesh_segs_at_x(Cpoly.sides(),
+                                                           SQDM().get_ordered_keys(PuCxkeys),
+                                                           doround=True)
+        for seg in Cpoly.sides():
+            print("..."), seg.co_ordinates()
+        for seg in Csegs_splits_atx:
+            print("..........."), seg.co_ordinates()
         Csegs_splits_dict = OrderedDict(enumerate(Csegs_splits_atx))
 
         #these splits from new segments are split at y-values on each of the vertical slabs.
@@ -449,7 +468,7 @@ class Delegation:
 
                 y_values += [y1,y2]
                 ordered_ydict = SQDM().get_ordered_keys(y_values)
-                splits = delegation.split_mesh_side_at_y(seg,ordered_ydict)
+                splits = delegation.split_mesh_side_at_y(seg,ordered_ydict,doround=True)
                 CPolySides += splits
                 for sp in splits:
                     print("\t"),xkey, sp.co_ordinates()
@@ -460,14 +479,39 @@ class Delegation:
         print
         print
         #Reconstruct the dictionary for segents.
-        CPoly_splitted = Polygon([])
-        CPoly_splitted.setSides(CPolySides)
-        Cseg_dictionary = CPoly_splitted.tosegsdict()
+        ftCPoly_splitted = Polygon([])
+        ftCPoly_splitted.setSides(CPolySides)
+        ftCseg_dictionary = ftCPoly_splitted.tosegsdict()
         print("length after splitting at x and at y."),len(CPolySides)
-        for k, v in Cseg_dictionary.items():
+        for k, v in ftCseg_dictionary.items():
             print k, v
+        print("length(fitable-segments in Cpoly)"),len(CPolySides)
 
-        print
+        Pslice_segs_dictionary = {}
+
+        for xkey, yblocks in Pslice_sqdm.items():
+            for yb, lines in yblocks.items():
+                for linehash in lines.keys():
+                    Pslice_segs_dictionary[linehash] = Pssegs_dictionary[linehash]
+        del Psqdm
+        del Pssegs_dictionary
+
+        util.save(Pslice_segs_dictionary, "../out/tmp/aPslicesegs.json")  # segment dictionary
+        util.save_sqdm(Pslice_sqdm, "../out/tmp/aPslicesqdm.json")
+        util.save(ftCseg_dictionary, "../out/tmp/aftCsegs.json")  # segment dictionary
+
+        #return Pslice_segs_dictionary, Pslice_sqdm, ftCseg_dictionary
+
+    @classmethod
+    def test_dummy_poly_delegation(self):
+        import time
+        delegation = Delegation()
+        t0 = time.time()
+        Pslice_segs_dictionary = util.load_from_file("../out/tmp/aPslicesegs.json")
+        Pslice_sqdm = util.load_sqdm_from_file("../out/tmp/aPslicesqdm.json")
+        ftCseg_dictionary = util.load_from_file("../out/tmp/aftCsegs.json")
+
+        print("time:"), time.time() - t0
         ##
         '''
         Find a yblock in current sqdm containing a new-segment; and test if a segment is legal to draw.
@@ -481,10 +525,14 @@ class Delegation:
                 #if legal: a) add to a dictionary[x1][(y1,y2)]
                            b) add all segments to a dictionary dictionary[x1][(y1,y2)]     
         '''
+        #Map every segments in ftCseg_dictionary to PSlice_sqdm box.
         fixables_xkey_yblocks={} #it contains valid partition segments, old segments for each box (x1,x2)x(y1,y2)
-        for seg in CPoly_splitted.sides()[:]:
+        for segkey in ftCseg_dictionary.keys():
+            seg = Segment().ntuples_to_seg(ftCseg_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)
             #get box (x1,x2)x(y1,y2) containing the segment seg.
             xpair,yblock = delegation.containing_box(seg,Pslice_sqdm)
+            if xpair == None:
+                xpair, yblock = delegation.containing_box(seg, Pslice_sqdm)
             xkey,xnkey = xpair
 
             legalpartition = delegation.islpsegment(seg,Pslice_sqdm[xkey][yblock])
@@ -539,19 +587,21 @@ class Delegation:
                 #iterate through segment's keys.
                 for segkey in yblock_segs_keys:
                     try:
-                        yblock_segs += [Segment().ntuples_to_seg(Cseg_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)]
+                        yblock_segs += [Segment().ntuples_to_seg(ftCseg_dictionary[segkey],
+                                                                 util.SEGMENT_TUPLE_KEYS)]
                     except:
-                        yblock_segs += [Segment().ntuples_to_seg(Pssegs_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)]
+                        yblock_segs += [Segment().ntuples_to_seg(Pslice_segs_dictionary[segkey],
+                                                                 util.SEGMENT_TUPLE_KEYS)]
 
                 yblock_xkeys = delegation.mesh_vertical_sweeplines(yblock_segs)
-                yblock_split_keys = {}
+                yblock_split_keys = {} #5f7cb0df8e21
                 for seg in yblock_segs:
                     print("\t\t-"), seg.co_ordinates()
                     # split seg
                     # 1)get x-values at which split must take place
                     li = yblock_xkeys[seg.getLeftPoint().getX()]
                     hi = yblock_xkeys[seg.getRightPoint().getX()]
-                    splits = seg.split_at_multiple_x(yblock_xkeys.keys()[li + 1:hi])
+                    splits = seg.split_at_multiple_x(yblock_xkeys.keys()[li + 1:hi], doround=True)
                     for splitseg in splits:
                         print("\t\t\t splits:"), splitseg.dictentry_linehashkey(),splitseg.co_ordinates()
                         yblock_split_keys[splitseg.dictentry_linehashkey()] = splitseg.dictentry_value()
@@ -584,7 +634,8 @@ class Delegation:
                 yblock_segs_keys = Pslice_sqdm[xkey][yblock].keys()
                 yblock_segs = []
                 for segkey in yblock_segs_keys:
-                    segobj = Segment().ntuples_to_seg(Pslice_sqdm[xkey][yblock][segkey], util.SEGMENT_TUPLE_KEYS)
+                    segobj = Segment().ntuples_to_seg(Pslice_sqdm[xkey][yblock][segkey],
+                                                      util.SEGMENT_TUPLE_KEYS)
                     yblock_segs += [segobj]
                     print("\t\t"),segkey, segobj.co_ordinates()
 
@@ -619,7 +670,8 @@ class Delegation:
                 print("keys:"),yblock_segs_keys
                 for segkey in yblock_segs_keys:
                     print("..."), segkey, fxkey, yblock
-                    seg = Segment().ntuples_to_seg(Pslice_sqdm[fxkey][fyblock][segkey], util.SEGMENT_TUPLE_KEYS)
+                    seg = Segment().ntuples_to_seg(Pslice_sqdm[fxkey][fyblock][segkey],
+                                                   util.SEGMENT_TUPLE_KEYS)
                     #map this segobj to yblock_template_sqdm
                     #find a containing box
                     x1, y1, x2, y2 = seg.co_ordinates()
@@ -663,98 +715,142 @@ class Delegation:
                     print("\t\t\t\t\t"), lhash, lval
 
     @classmethod
-    def test_usa_state_delegation(self):
+    def preprocess_us_sqdm(self):
         from SQDM import Polygon
         delegation = Delegation()
+
         subsqdm_file = "../out/tmp/"
         infile_Psqdm = "../out/tmp/2USA_sqdm.json" #sqdm for P #parent polygon sqdm.
         infile_Pssegs = "../out/tmp/2USAs.json" #Split of P segs #parent polygon
-        #Psqdm = util.load_sqdm_from_file(infile_Psqdm) #Parent sqdm
-        Pssegs_dictionary = util.load_from_file(infile_Pssegs)  # parent segment
 
+        Psqdm = util.load_sqdm_from_file(infile_Psqdm) #Parent sqdm
         Cpoly = SQDM.get_usa_state_boundary_by_name("CALIFORNIA")
-        AV = Cpoly.label_bottom_up(util.POLYGON_INNERID)
-        Cseg_dictionary = Cpoly.tosegsdict()
-
-        print("len(Pssegs),len(Csegs)"), len(Pssegs_dictionary), len(Cseg_dictionary)
-
-        #1. VerifySimplePolygon(CPoly) : it must be done  prior to adding segments into an existing sqdm.
-        #it is because, an intersecting segment forces to check it's intersection with all other segments in
-        #the same polygon# .
-
-        #since Cpoly is completely inside Polygon P, region abv and bel is
-        #both assigned to be same
-
-        for C_seg in Cpoly.sides():
-            C_seg.setAttrByName('abv',SQDM_DELEGATED_BY_ID)
-            C_seg.setAttrByName("bel",SQDM_DELEGATED_BY_ID)
+        Cpoly = Cpoly.slice_poly(500)
+        print("len(Pssegs),len(Csegs)"), Cpoly.nv
+        Cxkeys = Cpoly.vertical_sweeplines().keys()
 
         #find the part of Psqdm intersected by C .
-        Cxkeys = Cpoly.vertical_sweeplines().keys()
-        lowkey= Cxkeys[0]
-        highkey = Cxkeys[-1]
+        lowkey, highkey = Cxkeys[0], Cxkeys[-1]
         Pslice_sqdm = delegation.slice_sqdm(lowkey, highkey, Psqdm)
-        psqdmlowkey = Pslice_sqdm.keys()[0]
-        print("Completed Slicing sqdm for Cpoly..\n"), len(Pslice_sqdm)
+        del Psqdm
+        print("Completed Slicing sqdm for Cpoly. len(Pslice_sqdm)"), len(Pslice_sqdm)
 
-        print("C.xmin, C.xmax"),lowkey, highkey
-        print("Pslice.xmin,Pslice.xmax"), Pslice_sqdm.keys()[0], Pslice_sqdm.keys()[-1]
+        #AV = Cpoly.label_bottom_up(util.POLYGON_INNERID)
+        #util.poly_ptstoshp(Cpoly.get_vertices(), "../out/tmp/2Calif-500")
+
+        def verifySimplePolygon():
+            #1. VerifySimplePolygon(CPoly) : it must be done  prior to adding segments into
+            # an existing sqdm.
+            #it is because, an intersecting segment forces to check it's intersection
+            # with all other segments in
+            #the same polygon# .
+
+            #since Cpoly is completely inside Polygon P, region abv and bel is
+            #both assigned to be same
+            pass
+        #endf
+
+        def annotate_del_by(Cpoly):
+            for C_seg in Cpoly.sides():
+                C_seg.setAttrByName('abv',SQDM_DELEGATED_BY_ID)
+                C_seg.setAttrByName("bel",SQDM_DELEGATED_BY_ID)
+        #endf
+        annotate_del_by(Cpoly)
+
+        xun = sorted(set(Pslice_sqdm.keys()))
+        #plot only random 50%
+        util.save_xun_asshp(xun,"../out/tmp/Xun",Cpoly.polygon_extent(Cpoly.sides()))
+        #print Cpoly.polygon_extent(Cpoly.sides())
 
         ##new code.
         ##new segments are split at x-values unique to CPoly and that is overlapped by CPoly on Psqdm.
-        #(Optimal: only at x-values unique to Psqdm.x values.)
-        PuCxkeys = Cpoly.vertical_sweeplines().keys() + list(Pslice_sqdm.keys())
-        Csegs_splits_atx = delegation.split_mesh_segs_at_x(Cpoly.sides(), SQDM().get_ordered_keys(PuCxkeys))
-        Csegs_splits_dict = OrderedDict(enumerate(Csegs_splits_atx))
+        #(Optimal: only at x-values unique to Pslice_sqdm.x values.)
+        def split_C_at_CxPx(Cxkeys,Pslice_sqdm):
+            PuCxkeys = Cxkeys + list(Pslice_sqdm.keys())
+            Csegs_splits_atx = delegation.split_mesh_segs_at_x(Cpoly.sides(),
+                                                               SQDM().get_ordered_keys(PuCxkeys),
+                                                               doround=True)
+            Csegs_splits_dict = OrderedDict(enumerate(Csegs_splits_atx))
+            del Csegs_splits_atx
+            del Cxkeys
+            return Csegs_splits_dict
 
-        #these splits from new segments are split at y-values on each of the vertical slabs.
-        #1. collect new-splits for each vertical columns in Slice_sqdm
-        seg_buckes =OrderedDict()
-        for xkey in list(Pslice_sqdm.keys()):
-            seg_buckes[xkey] = []
-        print len(seg_buckes)
-        #partition segments split at x into vertical columns/buckets.
-        for seg_id,new_split in Csegs_splits_dict.items():
-            #search vcolumn for each seg.
-            #add this new-split to the bucket of vcolumn
-            xlow,xhigh = new_split.getLeftPoint().getX(),new_split.getRightPoint().getX()
-            xindex = delegation.xrange_search(list(Pslice_sqdm.keys()),xlow,xhigh)
-            xkey = list(Pslice_sqdm.keys())[xindex]
-            seg_buckes[xkey].append(seg_id)
+        Csegs_splits_dict = split_C_at_CxPx(Cxkeys,Pslice_sqdm)
 
-        #2. for each segments in vertical buckets/columns, try splitting at y-values
-        CPolySides = []
-        for xkey,seg_ids in seg_buckes.items()[:]:
-            y_blocks = Pslice_sqdm[xkey].keys()
-            y_values = list(set( yval for tup in y_blocks for yval in tup))
+        def fittable_segs(Pslice_sqdm,Csegs_splits_dict):
 
-            for seg_id in seg_ids[:]:
-                seg =Csegs_splits_dict[seg_id]
+            #these splits from new segments are split at y-values on each of the vertical slabs.
+            #1. collect new-splits for each vertical columns in Slice_sqdm
+            seg_buckes =OrderedDict()
+            for xkey in list(Pslice_sqdm.keys()):
+                seg_buckes[xkey] = []
+            print len(seg_buckes)
 
-                y1,y2 = seg.getLeftPoint().getY(),seg.getRightPoint().getY()
+            #partition segments split at x into vertical columns/buckets.
+            for seg_id,new_split in Csegs_splits_dict.items():
+                #search vcolumn for each seg.
+                #add this new-split to the bucket of vcolumn
+                xlow,xhigh = new_split.getLeftPoint().getX(),new_split.getRightPoint().getX()
+                xindex = delegation.xrange_search(list(Pslice_sqdm.keys()),xlow,xhigh)
+                xkey = list(Pslice_sqdm.keys())[xindex]
+                seg_buckes[xkey].append(seg_id)
 
-                y_values += [y1,y2]
-                ordered_ydict = SQDM().get_ordered_keys(y_values)
-                splits = delegation.split_mesh_side_at_y(seg,ordered_ydict)
-                CPolySides += splits
-                #delete last two elements
-                del y_values[-1]
-                del y_values[-1]
-            del y_values
-        print
-        print
-        #Reconstruct the dictionary for segents.
-        CPoly_splitted = Polygon([])
-        CPoly_splitted.setSides(CPolySides)
-        Cseg_dictionary = CPoly_splitted.tosegsdict()
-        print("length(fitable-segments in Cpoly)"),len(CPolySides)
+            #2. for each segments in vertical buckets/columns, try splitting at y-values
+            ftCPolySides = []
+            for xkey,seg_ids in seg_buckes.items()[:]:
+                y_blocks = Pslice_sqdm[xkey].keys()
+                y_values = list(set( yval for tup in y_blocks for yval in tup))
 
-        return 0
+                for seg_id in seg_ids[:]:
+                    seg =Csegs_splits_dict[seg_id]
 
-        for k, v in Cseg_dictionary.items():
-            print k, v
+                    y1,y2 = seg.getLeftPoint().getY(),seg.getRightPoint().getY()
 
-        print
+                    y_values += [y1,y2]
+                    ordered_ydict = SQDM().get_ordered_keys(y_values)
+                    splits = delegation.split_mesh_side_at_y(seg, ordered_ydict, doround=True)
+                    ftCPolySides += splits
+                    #delete last two elements
+                    del y_values[-1]
+                    del y_values[-1]
+                del y_values
+            print("length(fitable-segments in Cpoly)"), len(ftCPolySides)
+
+            # Reconstruct the dictionary for segments.
+            ftCPoly_splitted = Polygon([])
+            ftCPoly_splitted.setSides(ftCPolySides)
+            ftCseg_dictionary = ftCPoly_splitted.tosegsdict()
+            ftCseg_dictionary_ = {}
+            for key, value in ftCseg_dictionary.items():
+                ftCseg_dictionary_.update({key: [float(v) for v in value[0:4]] + [str(v) for v in value[4:]]})
+            util.save(ftCseg_dictionary_, "../out/tmp/ftCsegs.json")  # segment dictionary
+        #end
+        fittable_segs(Pslice_sqdm,Csegs_splits_dict)
+
+        #collect segments in Pslice_sqdm
+        def get_Pslice_sqdm_segs(Pslice_sqdm):
+            Pssegs_dictionary = util.load_from_file(infile_Pssegs)  # parent segment
+            Pslice_segs_dictionary={}
+            for xkey, yblocks in Pslice_sqdm.items():
+                for yb, lines in yblocks.items():
+                    for linehash in lines.keys():
+                        Pslice_segs_dictionary[linehash] = Pssegs_dictionary[linehash]
+            return Pslice_segs_dictionary
+
+        util.save_sqdm(Pslice_sqdm, "../out/tmp/Pslicesqdm.json")
+        Pslice_segs_dictionary = get_Pslice_sqdm_segs(Pslice_sqdm)
+        util.save(Pslice_segs_dictionary, "../out/tmp/Pslicesegs.json")  # segment dictionary
+        #return Pslice_segs_dictionary,Pslice_sqdm,ftCseg_dictionary
+
+    @classmethod
+    def test_usa_state_delegation(self):
+
+        delegation = Delegation()
+        Pslice_segs_dictionary = util.load_from_file("../out/tmp/Pslicesegs.json")
+        Pslice_sqdm = util.load_sqdm_from_file("../out/tmp/Pslicesqdm.json")
+        ftCseg_dictionary = util.load_from_file("../out/tmp/ftCsegs.json")
+
+        print len(Pslice_sqdm), len(Pslice_segs_dictionary), len(ftCseg_dictionary)
         ##
         '''
         Find a yblock in current sqdm containing a new-segment; and test if a segment is legal to draw.
@@ -769,9 +865,18 @@ class Delegation:
                            b) add all segments to a dictionary dictionary[x1][(y1,y2)]     
         '''
         fixables_xkey_yblocks={} #it contains valid partition segments, old segments for each box (x1,x2)x(y1,y2)
-        for seg in CPoly_splitted.sides()[:]:
+        cntnomatch =0
+        nomatchsegs = []
+
+        for segkey in ftCseg_dictionary.keys():
+            seg = Segment().ntuples_to_seg(ftCseg_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)
             #get box (x1,x2)x(y1,y2) containing the segment seg.
             xpair,yblock = delegation.containing_box(seg,Pslice_sqdm)
+            if xpair == None:
+                nomatchsegs +=[segkey]
+                xpair, yblock = delegation.containing_box(seg, Pslice_sqdm)
+                cntnomatch +=1
+                continue
             xkey,xnkey = xpair
 
             legalpartition = delegation.islpsegment(seg,Pslice_sqdm[xkey][yblock])
@@ -779,8 +884,8 @@ class Delegation:
             if not legalpartition:
                 return False
 
-            Pslice_sqdm[xkey][yblock][seg.dictentry_linehashkey()] = [seg.co_ordinates()]
 
+            Pslice_sqdm[xkey][yblock][segkey] = [seg.co_ordinates()]
             #collect all the segments in the containing box for further divisions.
             if xkey in fixables_xkey_yblocks:
                 if yblock not in fixables_xkey_yblocks[xkey]:
@@ -789,25 +894,29 @@ class Delegation:
                 fixables_xkey_yblocks[xkey]={}
                 fixables_xkey_yblocks[xkey][yblock]={}
 
-        print("Completed checking legal paritions and collecting all legal partiion in fixable-xkey-yblocks. \n")
+        def non_matching():
+            print("cnt-nomatch"), cntnomatch
+            nonmatchyvalues =[]
+            for segkey in nomatchsegs:
+                seg = Segment().ntuples_to_seg(ftCseg_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)
+                x1,y1,x2,y2 = seg.co_ordinates()
+                nonmatchyvalues += [y1,y2]
 
+            print("ylen-non matching"),len(nonmatchyvalues)
+            nonmatchyvalues = list(set(nonmatchyvalues))
+            print nonmatchyvalues
+
+
+        print("Completed mapping fitable segments to Pslice_sqdm. \n")
         #TODO:Change new segment's abv/bel labels to DELEGATED_TO and Establish equivalent ..
         #TODO: ..relation between DELEGATED_TO and DELEGATED_BY relation.
 
-        #
-        for xkey, yblocks in Pslice_sqdm.items():
-            print xkey
-            for yblock, seg_dict in yblocks.items():
-                print("\t yblock:"),yblock
-                for lh,lc in seg_dict.items(): #linehash, line cord.
-                    print("\t -- \t"),lh,lc
-        print
-        print ("fixables:")
-
+        cntyblocks =0
         for xkey,yblocks in fixables_xkey_yblocks.items():
-            print xkey
-            for yblock in yblocks.keys():
-                print("\t\t yblock:"), yblock, "n(segments)",len(Pslice_sqdm[xkey][yblock])
+            cntyblocks += len(yblocks.keys())
+        print("Len(fixable-xkeys),len(fixable-yblocks)"), len(fixables_xkey_yblocks),cntyblocks
+
+
         '''
         For segments (new segment + existing segments) in its containing box, develop a template_subsqdm.
         1. for each segment_mesh = fixables_xkey_yblocks[x_i][yblock_j]:
@@ -819,28 +928,29 @@ class Delegation:
         for xkey, yblocks in fixables_xkey_yblocks.items():
             print xkey
             for yblock in yblocks.keys():
-                print("\t\t yblock:"), yblock
+                print yblock
                 yblock_segs_keys = Pslice_sqdm[xkey][yblock].keys()
                 yblock_segs = []
+                print("\t"),yblock_segs_keys
 
                 #iterate through segment's keys.
                 for segkey in yblock_segs_keys:
                     try:
-                        yblock_segs += [Segment().ntuples_to_seg(Cseg_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)]
+                        yblock_segs += [Segment().ntuples_to_seg(ftCseg_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)]
                     except:
-                        yblock_segs += [Segment().ntuples_to_seg(Pssegs_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)]
+                        yblock_segs += [Segment().ntuples_to_seg(Pslice_segs_dictionary[segkey], util.SEGMENT_TUPLE_KEYS)]
 
                 yblock_xkeys = delegation.mesh_vertical_sweeplines(yblock_segs)
                 yblock_split_keys = {}
+
                 for seg in yblock_segs:
-                    print("\t\t-"), seg.co_ordinates()
                     # split seg
                     # 1)get x-values at which split must take place
                     li = yblock_xkeys[seg.getLeftPoint().getX()]
                     hi = yblock_xkeys[seg.getRightPoint().getX()]
-                    splits = seg.split_at_multiple_x(yblock_xkeys.keys()[li + 1:hi])
+                    splits = seg.split_at_multiple_x(yblock_xkeys.keys()[li + 1:hi], doround=True)
+
                     for splitseg in splits:
-                        print("\t\t\t splits:"), splitseg.dictentry_linehashkey(),splitseg.co_ordinates()
                         yblock_split_keys[splitseg.dictentry_linehashkey()] = splitseg.dictentry_value()
 
                 Pslice_sqdm[xkey][yblock] = yblock_split_keys
@@ -848,10 +958,12 @@ class Delegation:
 
             print
 
-                #TODO: 1) issue: if a parital vertical slab has only one horizontal line, then x: yblock: is empty.
-                #singular_template_sqdm = delegation.xcolumns_yblocks(mesh_splits, mesh_xkeys)
-                #rectangles_tuples = delegation.ravel_sqdm(singular_template_sqdm)
-                #mappable_splits_rectangles += [(mesh_splits,rectangles_tuples)]
+        ftCseg_dictionary = None
+
+        #TODO: 1) issue: if a parital vertical slab has only one horizontal line, then x: yblock: is empty.
+        #singular_template_sqdm = delegation.xcolumns_yblocks(mesh_splits, mesh_xkeys)
+        #rectangles_tuples = delegation.ravel_sqdm(singular_template_sqdm)
+        #mappable_splits_rectangles += [(mesh_splits,rectangles_tuples)]
 
         print("Completed splitting segs in fixable y-blocks")
         for xkey, yblocks in fixables_xkey_yblocks.items():
@@ -940,9 +1052,10 @@ class Delegation:
 
         #merge fixed_sqdm to Psqdm.
 
-
+#Delegation.pre_process_dummy_polygon()
 #Delegation.test_dummy_poly_delegation()
 print
 print
-Delegation.test_usa_state_delegation()
+Delegation.preprocess_us_sqdm()
+#Delegation.test_usa_state_delegation()
 
