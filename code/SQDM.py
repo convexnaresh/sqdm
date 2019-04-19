@@ -77,7 +77,7 @@ class Segment(object):
         return s
 
     def ntuples_to_seg(self,ntuplevalues,tuplekeys):
-        if len(ntuplevalues)< 4 or (len(tuplekeys) != len(ntuplevalues)):
+        if len(ntuplevalues)< 4 or (len(tuplekeys) < len(ntuplevalues)):
             return None
 
         attr = {}
@@ -85,7 +85,7 @@ class Segment(object):
         rpoint = Point(ntuplevalues[2:4])
         id = 0
 
-        for i in range(4,len(tuplekeys)):
+        for i in range(4,len(ntuplevalues)):
             key = tuplekeys[i]
             attr[key] = ntuplevalues[i]
 
@@ -213,11 +213,11 @@ class Segment(object):
         #left split
         lseg = copy.deepcopy(self)
         lseg.rp = splitpt
-        lseg.setAttr('edgeid',str(lseg.getAttrByName('edgeid')))#+"."+str(1))
+        lseg.setAttr('edgeid',lseg.getAttrByName('edgeid'))#+"."+str(1))
         #right split
         rseg = copy.deepcopy(self)
         rseg.lp = splitpt
-        rseg.setAttr('edgeid', str(rseg.getAttrByName('edgeid'))) #+ "." + str(2))
+        rseg.setAttr('edgeid', rseg.getAttrByName('edgeid')) #+ "." + str(2))
         return lseg,rseg
 
     def split_at_y(self,ypoint,doround=False):
@@ -284,7 +284,7 @@ class Segment(object):
         # hashes for (1,11)--(11,1) is same as (11,11)-(1,1) for two different segments
         #TODO : handle hash for duplicating points as shown above
         x1, y1, x2, y2 = self.co_ordinates()
-        key = util.hashargs(x1, y1, x2, y2)
+        key = util.hashargs(str(int(x1)), str(int(y1)), str(int(x2)), str(int(y2)))
         return key
 
     def dictentry_value(self):
@@ -293,6 +293,12 @@ class Segment(object):
             t+= (self.attr['abv'],self.attr['bel'])
         except:
             pass
+
+        try:
+            t+= (self.attr['ischild'],)
+        except:
+            pass
+
         return t
 
     def tupleToSegment(self, tup):
@@ -420,13 +426,8 @@ class Polygon(object):
     def slice_poly(self,nsegments):
         '''get only nsegments of this polygon.'''
         slicePoly = Polygon([])
-        cnt =0
-        for seg in self.sides()[2300:]:
-            if  cnt < nsegments:
-                slicePoly.addSegment(seg)
-                cnt +=1
-
-        return slicePoly
+        vertices = self.get_vertices()[290:290+nsegments+1]
+        return Polygon(vertices)
 
 
     def compute_properties(self):
@@ -778,6 +779,7 @@ class Polygon(object):
         return newpoly
 
     def  non_overlaping_yspans(self,ytuples):
+
         '''given list of (yi,yj,li) that means line li has y-span yi-yj, construct a coverup y-span
         such that the y-span's form a complete lut-entries. For instance:
         (1,3,a) and (2,4,b) are overlapping y-spans; it must result a tuple (1,4,{a,b}) and (4,1,{})
@@ -894,10 +896,10 @@ class Polygon(object):
                 if y1 < y2:
                     if ylow <= y1 and y2 <= yhigh:
                         #TODO: make an ordered dictionary inside.
-                        xcolumn_yblocks[yblock][seg.dictentry_linehashkey()] = [x1,y1,x2,y2]
+                        xcolumn_yblocks[yblock][seg.dictentry_linehashkey()] = 1
                 else:
                     if ylow <= y2 and y1 <= yhigh:
-                        xcolumn_yblocks[yblock][seg.dictentry_linehashkey()] = [x1,y1,x2,y2]
+                        xcolumn_yblocks[yblock][seg.dictentry_linehashkey()] = 1
 
         xkey_max_seg_holding={}
         for x,dyb in xcolumn_yblock_dic.items():
@@ -909,8 +911,7 @@ class Polygon(object):
 
         return xcolumn_yblock_dic
 
-
-    def label_bottom_up(self,pid):
+    def label_bottom_up(self,pid,outid=None):
         '''give a polygon segments in counter clockwise directions.'''
 
         L =[]
@@ -918,7 +919,11 @@ class Polygon(object):
             p1,p2 = seg.origco_ordinates()
             L.append([pid] + list(p1.totuple()) + list(p2.totuple()) + [0,0,0])
 
-        INF = util.POLYGON_OUTSIDEID
+        if outid == None:
+            INF = util.POLYGON_OUTSIDEID
+        else:
+            INF = outid
+
         for ti in range(len(L)):  # each tuple-index
             t = L[ti]  # [rid,x1,y1,x2,y2,iswp?,rid-left,rid-right,isvisited?]
             polyid, s1x1, s1y1, s1x2, s1y2, s1isswapped = t[0:6]
@@ -944,7 +949,7 @@ class Polygon(object):
                         t[6] = INF  # top
                         t[7] = polyid  # bot
         attrlist = [(l[6],l[7]) for l in L] #return (above,bel)
-        self.setSidesAttr([{'abv':t[0], 'bel':t[1]} for t in attrlist])
+        #self.setSidesAttr([{'abv':t[0], 'bel':t[1]} for t in attrlist])
         return attrlist
 
 
@@ -1083,39 +1088,49 @@ class SQDM:
         import numpy as np
         home = "D:/workspace/sqdm-repo/sqdm/out/tmp"
         infile1 = home + "/usa.prj.lbl.txn.int.txt"
-        arr = np.loadtxt(infile1)
-        arr = arr[:, :]#.astype(np.dtype('int64'))
-        print arr.shape
-        segments = tuple(arr)
 
-        segment_tuples = [t[1:] for t in segments] #remove first value which is polygon id.
-        usa_polygon = Polygon([])
-        edgeid = 0
-        for seg in segment_tuples:
-            attr = {}
-            lpoint = Point(seg[0:2])
-            rpoint = Point(seg[2:4])
-            isswp = seg[4]
-            attr['abv'] = seg[5]
-            attr['bel'] = seg[6]
-            attr['edgeid'] = edgeid
+        def get_usa_polygon(infile1):
+            arr = np.loadtxt(infile1)
+            arr = arr[:, :]#.astype(np.dtype('int64'))
+            print arr.shape
+            segments = tuple(arr)
 
-            if isswp:
-                segObj = Segment(rpoint,lpoint,attr)
-            else:
-                segObj = Segment(lpoint, rpoint, attr)
+            segment_tuples = [t[1:] for t in segments] #remove first value which is polygon id.
+            usa_polygon = Polygon([])
+            edgeid = 0
+            for seg in segment_tuples:
+                attr = {}
+                lpoint = Point(seg[0:2])
+                rpoint = Point(seg[2:4])
+                isswp = seg[4]
+                attr['abv'] = seg[5]
+                attr['bel'] = seg[6]
+                attr['edgeid'] = edgeid
 
-            usa_polygon.addSegment(segObj)
-            edgeid +=1
+                if isswp:
+                    segObj = Segment(rpoint,lpoint,attr)
+                else:
+                    segObj = Segment(lpoint, rpoint, attr)
 
-        ##split polygon and make 2D grids.
-        usa_split_poly = usa_polygon.split_sides_at_x(doround=True)
-        seg_dict = usa_split_poly.tosegsdict()
+                usa_polygon.addSegment(segObj)
+                edgeid +=1
+            util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/2USA")
 
-        util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/2USA")
-        util.poly_ptstoshp(usa_split_poly.get_vertices(), "../out/tmp/2USA.int")
-        util.save(seg_dict, "../out/tmp/2USAs.json") #segment dictionary
+            return usa_polygon
 
+        def split_usa_polygon_at_x(usa_polygon):
+            ##split polygon and make 2D grids.
+            usa_split_poly = usa_polygon.split_sides_at_x(doround=True)
+            seg_dict = usa_split_poly.tosegsdict()
+
+
+            util.poly_ptstoshp(usa_split_poly.get_vertices(), "../out/tmp/2USA.int")
+            util.save(seg_dict, "../out/tmp/2USAs.json") #segment dictionary
+            return usa_split_poly
+
+        usa_polygon = get_usa_polygon(infile1)
+        usa_split_poly = split_usa_polygon_at_x(usa_polygon)
+        del usa_polygon
 
         print("completed splitting us map.")
         print("minx"),usa_split_poly.getPropertyByName("minx")
@@ -1168,8 +1183,10 @@ class SQDM:
 
         return state_polygon
 
+if __name__ == "__main__":
 
-#SQDM.test1()
-SQDM.test_usa_sqdm()
-#SQDM.test3()
-#SQDM.get_usa_state_boundary_by_name("CALIFORNIA")
+    #SQDM.test1()
+    #SQDM.test_usa_sqdm()
+    #SQDM.test3()
+    #SQDM.get_usa_state_boundary_by_name("CALIFORNIA")
+    pass
