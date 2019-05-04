@@ -25,6 +25,7 @@ CHILD_ANNOTATION = 2
 SQDM_DELEGATED_BY_ID = "USA"
 SQDM_DELEGATED_TO_ID= "CALIF"
 COUNTRY_DELEGATED_BY_ID = 0.0
+extents={'dummy_usa_extent': [(1200, 600), (5200, 3000)]}
 
 EQT = {}
 
@@ -57,7 +58,8 @@ def save_xun_asshp(xun, outfilename, mapextent=[]):
     outprjref.ImportFromEPSG(epsgdic["worldmercater"])
 
     if os.path.exists(outfilename):
-        driver.DeleteDataSource(outfilename)
+        #driver.DeleteDataSource(outfilename)
+        pass
     outDataSet = driver.CreateDataSource(outfilename)
 
     outLayer = outDataSet.CreateLayer("mystates", outprjref, geom_type=ogr.wkbMultiLineString)
@@ -192,7 +194,8 @@ def poly_ptstoshp(polypts,outfilename,save_as_multipt=False):
     outprjref.ImportFromEPSG(epsgdic["worldmercater"])
 
     if os.path.exists(outfilename):
-        driver.DeleteDataSource(outfilename)
+        #driver.DeleteDataSource(outfilename)
+        pass
     outDataSet = driver.CreateDataSource(outfilename)
     if save_as_multipt:
         outLayer = outDataSet.CreateLayer("mystates", outprjref, geom_type=ogr.wkbMultiPoint)

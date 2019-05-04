@@ -11,6 +11,7 @@ Left = 0
 Right = 1
 EVENTNAME = {0: "Start", 1: "End"}
 SEGMENT_ID_TYPES = {'linehash': 'linehash', 'lineid': 'lineid', 'edgeid': 'edgeid'}
+
 debug = False
 
 class Point:
@@ -76,6 +77,11 @@ class Segment(object):
         s += str(self.lp) + "--" + str(self.rp) + str(self.attr)
         return s
 
+    def __eq__(self, other):
+        if self.lp == other.lp and self.rp == other.rp:
+            return True
+        return False
+
     def ntuples_to_seg(self,ntuplevalues,tuplekeys):
         if len(ntuplevalues)< 4 or (len(tuplekeys) < len(ntuplevalues)):
             return None
@@ -106,7 +112,7 @@ class Segment(object):
         try:
             return self.attr[name]
         except:
-            return ''
+            return None
 
     def setAttrByName(self,name,value):
         self.attr[name] = value
@@ -314,6 +320,39 @@ class Segment(object):
             self.rp = p1
         return self
 
+    def region_encodeings(self):
+        '''
+        :return: (a tuple (a,b) with regions above and below this segment.
+        It is such that region enterior this segment is a closed polygon.
+        For example:
+        Let a segment AB is a side of a polygon with region code 'a'; and outside
+        of the region code 'b'. Then, this segment walked in counter-clockwise
+        direction on the polygon must reflect ('a','b') such that region inside
+        is always 'a'
+        '''
+        a, b = None,None
+        polyid=util.POLYGON_INNERID
+        INF = util.POLYGON_OUTSIDEID
+
+        p1,p2 = self.origco_ordinates()
+        x1,y1 = p1.totuple()
+        x2,y2 = p2.totuple()
+        if x1 < x2:
+            a = polyid  # top
+            b = INF  # bot
+        elif x1 > x2:
+            a = INF  # top
+            b = polyid  # bot
+        elif x1 == x2:
+            if y1 < y2:  # vup
+                a = polyid  # top
+                b = INF  # bot
+            elif y1 > y2:  # vdown
+                a = INF  # top
+                b = polyid  # bot
+
+        return (a,b)
+
 class Polygon(object):
     import hashlib
     '''A polygon object can be constructed in three ways:
@@ -355,6 +394,25 @@ class Polygon(object):
     def __len__(self):
         if self.nv < 0:
             return len(self._sides)
+        else:
+            return self.nv
+
+
+    def intersection(self,otherpoly):
+        '''
+
+        :param otherpoly: other object of type Polygon
+        :return:
+        '''
+        lst1 = self.get_vertices()
+        lst2 = otherpoly.get_vertices()
+        if len(lst1) > len(lst2):
+            lst1,lst2 = lst2, lst1
+
+        # Use of hybrid method
+        temp = set(lst2)
+        lst3 = [value for value in lst1 if value in temp]
+        return lst3
 
     def __str__(self):
         st = ''
@@ -425,8 +483,10 @@ class Polygon(object):
 
     def slice_poly(self,nsegments):
         '''get only nsegments of this polygon.'''
-        slicePoly = Polygon([])
-        vertices = self.get_vertices()[290:290+nsegments+1]
+        if nsegments is None or nsegments =='' or nsegments == 'all':
+            vertices=self.get_vertices()[0:]
+        else:
+            vertices = self.get_vertices()[0:nsegments]
         return Polygon(vertices)
 
 
@@ -757,7 +817,13 @@ class Polygon(object):
             li = xunikdic[seg.getLeftPoint().getX()]
             hi = xunikdic[seg.getRightPoint().getX()]
 
-            splits = seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi],doround)
+            splits = seg.split_at_multiple_x(xunikdic.keys()[li + 1:hi], doround)
+            if seg == Segment().tupleToSegment([651891569, 1975386408,652032154, 1975292771]):
+                print seg
+                print("\tsplit @x="),xunikdic.keys()[li + 1:hi]
+                for sp in splits:
+                    print("\tusa-seg split@x"),sp.co_ordinates()
+                print
             all_splits += splits
             temppoly.setPropertyByName('split_counts',len(splits)) #segment's split count
 
@@ -949,7 +1015,7 @@ class Polygon(object):
                         t[6] = INF  # top
                         t[7] = polyid  # bot
         attrlist = [(l[6],l[7]) for l in L] #return (above,bel)
-        #self.setSidesAttr([{'abv':t[0], 'bel':t[1]} for t in attrlist])
+        self.setSidesAttr([{'abv':t[0], 'bel':t[1]} for t in attrlist])
         return attrlist
 
 
@@ -997,6 +1063,7 @@ class SQDM:
     def test1(self):
         #Driver to Test Polygon
         doround=False
+        Nsegs= 'all'
         poly24 = [(6.81,5.05), (3.98,3.95), (4.98,2.02), (2.00,0.97), (0.58,3.88), (2.00,3.86), (3.00,4.96), (3.00,6.26)] #collinear, revisited twice.
 
         pobj2 = [(3.0, 6.0), (4.0, 5.0), (2.0, 4.0), (1.0, 4.0),
@@ -1008,25 +1075,23 @@ class SQDM:
         #(14, 2), (12, 4), (14, 8), (18, 6), (16, 4), (16, 2), (18, 0), (20, 2), (20, 4),
                  #(20, 6), (18, 10), (16, 8), (12, 10), (14, 14), (12, 12), (10, 14), (6, 14), (6, 12), (4, 10)]
 
-        '''pobj2 =[(1002451148, 2157155400), (1002985974, 2156979255), (1002949639, 2157027380),
-                (1002934867, 2157037231), (1002863289, 2157053914), (1002817837, 2157080433),
-                (1002809521, 2157109224), (1002785398, 2157118993), (1002737353, 2157112525),
-                (1002747795, 2157163692), (1002682339, 2157195986), (1002698135, 2157230886),
-                (1002705605, 2157276072), (1002646360, 2157300939), (1002625521, 2157338066),
-                (1002621358, 2157383904), (1002604682, 2157424835), (1002537612, 2157424835),
-                (1002530978, 2157400047), (1002502135, 2157405008), (1002451585, 2157428700),
-                (1002425447, 2157429364), (1002433796, 2157386559), (1002409172, 2157344104),
-                (1002380752, 2157356613), (1002281845, 2157408492), (1002228801, 2157405821),
-                (1002171160, 2157503183),
-                (1002161263, 2157544235), (1002129448, 2157555469), (1002049833, 2157598249)]'''
+        usa =[(1600, 2600), (1400, 2400), (1400, 2200), (1200, 2000),
+              (1400, 1800), (1600, 1600), (1800, 1400), (2000, 1200),
+              (2200, 1000), (2600, 1000), (2800, 1000), (3000, 1000),
+              (3200, 1000), (3400, 1000), (3600, 800), (3800, 800),
+              (4000, 800), (4200, 1000), (4400, 800), (4600, 600),
+              (4800, 600), (4800, 800), (4600, 1000), (4400, 1200),
+              (4400, 1400), (4600, 1600), (4800, 2000), (4800, 2200), (5000, 2400), (5000, 2600), (5200, 2800), (5000, 3000), (4800, 2800), (4600, 2800), (4600, 2600), (4400, 2400), (4200, 2400), (3800, 2400), (3600, 2600), (3200, 2600), (2800, 2800), (2600, 2800), (2400, 2800), (2200, 2800), (2000, 2800), (1800, 2800), (1600, 2800)]
+        pobj2 = usa
+
 
         #pobj2.reverse() #anti-clockwise
         pobj2 = Polygon(pobj2) #anti-clockwise
         pobj2.label_bottom_up(777)
-
+        print {"dummy_usa_extent":pobj2.polygon_extent()}
         #save polygon
         seg_dict = pobj2.tosegsdict()
-        self.save(seg_dict,"../out/tmp/aPo.json") #original
+        self.save(seg_dict,"../out/tmp/dummy/iUSA.json") #original
 
         ##split polygon and make 2D grids.
         split_poly = pobj2.split_sides_at_x(doround=True)
@@ -1034,7 +1099,7 @@ class SQDM:
         print("verties of split poly"), split_poly.get_vertices()
         #save polygon
         seg_dict = split_poly.tosegsdict()
-        self.save(seg_dict,"../out/tmp/aPs.json",dosort=True) #splits do not sort by keys.
+        self.save(seg_dict,"../out/tmp/dummy/USAs.json",dosort=True) #splits do not sort by keys.
 
         xcolumns_yblocks_dic = split_poly.xcolumns_yblocks()
         mapped_segments_xcolumn_yblock_dic = split_poly.segment_mapping_to_yblocks(xcolumns_yblocks_dic)
@@ -1048,13 +1113,15 @@ class SQDM:
 
         #save dictionary sqdm.
         print type(split_poly.getProperties())
-        util.poly_ptstoshp(pobj2.get_vertices(), "../out/tmp/aPo")
+        util.poly_ptstoshp(pobj2.get_vertices(), "../out/tmp/dummy/USAs")
         if doround:
-            util.poly_ptstoshp(split_poly.get_vertices(),"../out/tmp/aPs.int")
+            util.poly_ptstoshp(split_poly.get_vertices(),"../out/tmp/dummy/USAs")
         else:
-            util.poly_ptstoshp(split_poly.get_vertices(), "../out/tmp/aPs")
-        self.save(split_poly.getProperties(),"../out/tmp/aPsqdm_prop.json")
-        self.save(mapped_segments_xcolumn_yblock_dic,"../out/tmp/aPsqdm.json")
+            util.poly_ptstoshp(split_poly.get_vertices(), "../out/tmp/dummy/USAs")
+        self.save(split_poly.getProperties(),"../out/tmp/dummy/USAsqdm_prop.json")
+        self.save(mapped_segments_xcolumn_yblock_dic,"../out/tmp/dummy/USAsqdm.json")
+        util.save_xun_asshp(sorted(set(pobj2.vertical_sweeplines())), "../out/tmp/dummy/USAx-" + str(Nsegs),
+                            pobj2.polygon_extent())
 
         return mapped_segments_xcolumn_yblock_dic
 
@@ -1081,6 +1148,37 @@ class SQDM:
         xcolumns_yblocks_dic = split_poly.xcolumns_yblocks()
         mapped_segments_xcolumn_yblock_dic = split_poly.segment_mapping_to_yblocks(xcolumns_yblocks_dic)
         return mapped_segments_xcolumn_yblock_dic
+
+    @classmethod
+    def get_usa_polygon(self,infile1):
+        import numpy as np
+        arr = np.loadtxt(infile1)
+        arr = arr[:, :]#.astype(np.dtype('int64'))
+        print arr.shape
+        segments = tuple(arr)
+
+        segment_tuples = [t[1:] for t in segments] #remove first value which is polygon id.
+        usa_polygon = Polygon([])
+        edgeid = 0
+        for seg in segment_tuples:
+            attr = {}
+            lpoint = Point(seg[0:2])
+            rpoint = Point(seg[2:4])
+            isswp = seg[4]
+            attr['abv'] = seg[5]
+            attr['bel'] = seg[6]
+            attr['edgeid'] = edgeid
+
+            if isswp:
+                segObj = Segment(rpoint,lpoint,attr)
+            else:
+                segObj = Segment(lpoint, rpoint, attr)
+
+            usa_polygon.addSegment(segObj)
+            edgeid +=1
+        util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/iUSA")
+
+        return usa_polygon
 
     @classmethod
     def test_usa_sqdm(self):
@@ -1114,7 +1212,7 @@ class SQDM:
 
                 usa_polygon.addSegment(segObj)
                 edgeid +=1
-            util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/2USA")
+            util.poly_ptstoshp(usa_polygon.get_vertices(), "../out/tmp/iUSA")
 
             return usa_polygon
 
@@ -1122,10 +1220,8 @@ class SQDM:
             ##split polygon and make 2D grids.
             usa_split_poly = usa_polygon.split_sides_at_x(doround=True)
             seg_dict = usa_split_poly.tosegsdict()
-
-
-            util.poly_ptstoshp(usa_split_poly.get_vertices(), "../out/tmp/2USA.int")
-            util.save(seg_dict, "../out/tmp/2USAs.json") #segment dictionary
+            util.poly_ptstoshp(usa_split_poly.get_vertices(), "../out/tmp/USAsx")
+            util.save(seg_dict, "../out/tmp/USAsx.json") #segment dictionary
             return usa_split_poly
 
         usa_polygon = get_usa_polygon(infile1)
@@ -1145,9 +1241,11 @@ class SQDM:
             for yblock in yblocks:
                 print("\t"),"key:",yblock, "values:",yblocks[yblock]
 
+        util.save(usa_split_poly.getProperties(),"../out/tmp/USA_sqdm_prop.json")
+        util.save(segment_mapped_xcolumn_yblock_dic, "../out/tmp/USA_sqdm.json")
+        extent = usa_split_poly.polygon_extent(usa_split_poly.sides())
+        util.save_xun_asshp(sorted(set(segment_mapped_xcolumn_yblock_dic.keys())),"../out/tmp/USAx-",extent)
 
-        util.save(usa_split_poly.getProperties(),"../out/tmp/2USA_sqdm_prop.json")
-        util.save(segment_mapped_xcolumn_yblock_dic, "../out/tmp/2USA_sqdm.json")
     @classmethod
     def get_usa_state_boundary_by_name(self,state_name):
         ##use usa polygon
@@ -1183,10 +1281,33 @@ class SQDM:
 
         return state_polygon
 
+    @classmethod
+    def Calif_intersect_USA(self):
+        home = "D:/workspace/sqdm-repo/sqdm/out/tmp"
+        infile1 = home + "/usa.prj.lbl.txn.int.txt"
+
+        pcalif = SQDM.get_usa_state_boundary_by_name("CALIFORNIA")
+        pusa = SQDM.get_usa_polygon(infile1)
+
+        segcomp = Segment().tupleToSegment((625462752.0, 2023543271.0, 625462752.0, 2023598612.0))
+        print("len(calif)/len(usa)"),len(pcalif), len(pusa)
+
+        print segcomp
+        for usseg in pusa.sides():
+            if usseg == segcomp:
+                print("=="), usseg.co_ordinates(),segcomp.co_ordinates()
+
+        uvc = pusa.intersection(pcalif)
+        print("len(usa and calif)"),len(uvc), (len(uvc)/float(len(pcalif)))*100
+        p3 = Polygon(uvc)
+        util.poly_ptstoshp(p3.get_vertices()[0:3110], "../out/tmp/iUSAvCalif")
+
 if __name__ == "__main__":
 
     #SQDM.test1()
     #SQDM.test_usa_sqdm()
     #SQDM.test3()
     #SQDM.get_usa_state_boundary_by_name("CALIFORNIA")
+
+    SQDM.Calif_intersect_USA()
     pass

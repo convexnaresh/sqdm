@@ -393,3 +393,83 @@ for t in arr:
     if (t[0] <= search_key1 and search_key1 <= t[1]) and \
             (t[0] <= search_key2 and search_key2 <= t[1]):
         print("found"), t
+
+def yrange_search(arr, search_key1,search_key2):
+    '''
+    :param arr: sorted arrays of tuples like (ya,yb)
+    :param search_key1: is a search-key
+    :param search_key2: is a search-key
+    :return: lower index i of the item in arr such that
+    arr[i][0]<= search_key1 and arr[i][1] >=search_key1 and
+    arr[i][0]<= search_key2 and arr[i][1] >=search_key2
+    not found returns -1
+    '''
+    if search_key1 > search_key2:
+        search_key1, search_key2 = search_key2, search_key1
+
+    # range search
+    l = 0
+    r = len(arr) - 1
+
+    while l <= r:
+        mid = l + (r - l) / 2;
+        # Check if x is present at mid
+        # print mid
+        if (arr[mid][0] <= search_key1 and search_key1 <= arr[mid][1]) and \
+                (arr[mid][0] <= search_key2 and search_key2 <= arr[mid][1]):
+            return mid
+
+        # If x is greater, ignore left half
+        elif arr[mid][0] < search_key1:
+            l = mid + 1
+
+        # If x is smaller, ignore right half
+        else:
+            r = mid - 1
+
+    # If we reach here, then the element was not present
+    return -1
+def xrange_search(arr, search_key1, search_key2):
+    '''
+    :arr : sorted array of items.
+    :param search_key: is a search-key
+    :return: lower index i of the item in arr such that
+    arr[i]<= search_key1 and arr[i+1] >=search_key1 and
+    arr[i]<= search_key2 and arr[i+1] >=search_key2
+    not found returns -1
+    '''
+    # range search
+    arr += arr[0:1]
+    l = 0
+    r = len(arr) - 2
+
+    while l <= r:
+        mid = l + (r - l) / 2;
+        # Check if x is present at mid
+        # print mid
+
+        if (arr[mid] <= search_key1 and search_key1 < arr[mid + 1]) and \
+                (arr[mid] <= search_key2 and search_key2 < arr[mid + 1]):
+            return mid
+
+        # If x is greater, ignore left half
+        elif arr[mid] < search_key1:
+            l = mid + 1
+
+        # If x is smaller, ignore right half
+        else:
+            r = mid - 1
+
+    # If we reach here, then the element was not present
+    return -1
+
+print
+print
+from simple_polygon import util
+a1 =[1,5,6,9,79,89,900,8949,499948]
+
+a = list(util.pairwise(a1))
+print a
+k1 = 499948
+k2 = 499948
+print yrange_search(a,k1,k2), xrange_search(a1,k1,k2)
