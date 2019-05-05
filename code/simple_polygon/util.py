@@ -29,13 +29,22 @@ extents={'dummy_usa_extent': [(1200, 600), (5200, 3000)]}
 
 EQT = {}
 
-def hashargs(self, *args):
+def hashargs(*args):
     inp = args
-    s = hashlib.sha3_224()
+    #s = hashlib.sha3_224()
     s = hashlib.sha3_256()
     for item in inp:
         s.update(str(item))
     return s.hexdigest()[hindexi:hindexj]
+
+def hash_cblocks_dist(block_components):
+    inp = block_components
+    #s = hashlib.sha3_224()
+    s = hashlib.sha3_256()
+    for item in inp:
+        s.update(str(item))
+    return s.hexdigest()[hindexi:hindexj]
+
 
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
