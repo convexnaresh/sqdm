@@ -473,3 +473,111 @@ print a
 k1 = 499948
 k2 = 499948
 print yrange_search(a,k1,k2), xrange_search(a1,k1,k2)
+
+import gdal, osgeo
+'''
+SpatialReference defaultGeoSys = new SpatialReference("");
+defaultGeoSys.SetWellKnownGeogCS("EPSG:4326");
+
+//define a circle using point and buffer
+string pointlineString = "POINT (" + longitude + " " + latitude + ")";
+Geometry center = OGR.Ogr.CreateGeometryFromWkt(ref pointlineString, defaultGeoSys);
+Geometry bufferDefn = center.Buffer(radiusInMiles, 10000);
+Geometry bufferDefnPolygon = bufferDefn.GetGeometryRef(0);
+Geometry actualCircle = Ogr.ForceToPolygon(bufferDefnPolygon);
+'''
+homef="D:/workspace/sqdm-repo/sqdm/out/tmp/redist/cd116/National_CD116.csv"
+home = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/cd116/"
+import csv
+'''
+d={'02': [], '03': [], '01': [], '04': []}
+dct={}
+blk_dist =[]
+with open(homef) as csv_file:
+    csv_reader = csv.reader(csv_file, delimiter=',')
+    line_count = 0
+    line_count28 =0
+    print("---------------")
+    for row in csv_reader:
+        if row[0].startswith("28"):
+            line_count28 += 1
+            d[row[1]] += row[0]
+            blk_dist += [row]#,row[1].strip("\n")]]
+
+            try:
+                dct[row[0][5:11]] += [row[0]] #census tract
+            except:
+                dct[row[0][5:11]] = [row[0]]
+
+        line_count += 1
+
+    print('Processed {0} lines.'.format(line_count))
+    print('Processed {0} blocks for 28(ms).'.format(line_count28))
+    print len(d['01'])
+    print len(d['02'])
+    print len(d['03'])
+    print len(d['04'])
+
+print blk_dist[0]
+with open(home+'blk_eqiv28.csv', 'wb') as writeFile:
+    writer = csv.writer(writeFile)
+    writer.writerows(blk_dist)
+writeFile.close()
+'''
+import csv
+
+csvData = [['Person', 'Age'], ['Peter', '22'], ['Jasmine', '21'], ['Sam', '24']]
+
+with open(home+'person.txt', 'w') as csvFile:
+    writer = csv.writer(csvFile)
+    for r in csvData:
+        writer.writerow(r)
+
+csvFile.close()
+
+'''
+t =0
+for ctid, blks in dct.items():
+    print ctid, len(blks)
+    t += len(blks)
+
+print("Total blocks")
+print t
+print("census-tract"), len(dct)
+
+homef="C:/Users/naresh-ad/Downloads/ctract.csv"
+ctrd={}
+with open(homef) as csv_file:
+    csv_reader = csv.reader(csv_file, delimiter=',')
+    line_count = 0
+    line_count28 =0
+    print("---------------")
+    for row in csv_reader:
+        ctrd[row[0]] =[]
+print("0000000000000000")
+print len(ctrd)
+'''
+
+from osgeo import ogr
+shp = "D:/workspace/sqdm-repo/sqdm/uscounties/cb_2016_us_county_500k.shp"
+import os
+print os.path.dirname(shp)
+
+shapef = ogr.Open(shp)
+inlyr = shapef.GetLayer()
+inlyr.CreateField(ogr.FieldDefn('disid'), ogr.OFTInteger)  # create new field/column/attribute
+lyr_defn = inlyr.GetLayerDefn()
+poly_field_count = lyr_defn.GetFieldCount()
+print("fc"), poly_field_count
+for featid in xrange(inlyr.GetFeatureCount()):
+    feat = inlyr.GetFeature(featid)
+    feat.SetField(lyr_defn.GetFieldDefn(9).GetNameRef(), 99)  # polygon id 99
+
+'''
+import geopandas as gp
+
+file = gp.read_file('shp')
+list = [stuff, stuff, stuff]
+file['new_field_name'] = list
+file.to_file(shp)
+'''

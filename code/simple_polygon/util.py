@@ -45,7 +45,6 @@ def hash_cblocks_dist(block_components):
         s.update(str(item))
     return s.hexdigest()[hindexi:hindexj]
 
-
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     from itertools import tee, izip
@@ -184,6 +183,51 @@ def save_yun_asshp(xun, outfilename, mapextent=[]):
     outLayer = outFeature = poly  = ring = outLayerDefn = outLayer = outDataSet = None
     print("Vertical lines are saved as shape file in "),outfilename
 
+def geom_toshp(newgeom,outfilename,save_as_multipt=False):
+    epsgdic = {'nad83': 4269, 'wgs84': 4326, 'pseudoutm': 3857, 'worldmercater': 3395}
+
+    from shapely.geometry import LinearRing, Point, mapping
+    from osgeo import ogr, osr
+    import os
+    save_as_multipt = save_as_multipt
+    # load initial vertex order files.
+    # save to shp.
+    if save_as_multipt:
+        outfilename +='as_points'
+
+    outfilename += '.shp'
+    driver = ogr.GetDriverByName('ESRI Shapefile')
+    outprjref = osr.SpatialReference()
+    outprjref.ImportFromEPSG(epsgdic["worldmercater"])
+
+    if os.path.exists(outfilename):
+        #driver.DeleteDataSource(outfilename)
+        pass
+    outDataSet = driver.CreateDataSource(outfilename)
+    if save_as_multipt:
+        outLayer = outDataSet.CreateLayer("mystates", outprjref, geom_type=ogr.wkbMultiPoint)
+    else:
+        outLayer = outDataSet.CreateLayer("mystates", outprjref, geom_type=ogr.wkbMultiPolygon)
+
+    outLayer.CreateField(ogr.FieldDefn('STATEFP'), ogr.OFTInteger) #create new field/column/attribute
+    outLayerDefn = outLayer.GetLayerDefn()
+    poly = ogr.Geometry(ogr.wkbPolygon)
+
+    #save as point feature
+    if not save_as_multipt:
+        outFeature = ogr.Feature(outLayerDefn)
+        outFeature.SetGeometry(newgeom)
+
+    #save as polygon feature
+    if save_as_multipt:
+        outFeature = ogr.Feature(outLayerDefn)
+        outFeature.SetGeometry(newgeom)
+
+    outFeature.SetField(outLayerDefn.GetFieldDefn(0).GetNameRef(), 99) #polygon id 99
+    outLayer.CreateFeature(outFeature)
+    # end-for
+    outLayer = outFeature = poly  = ring = outLayerDefn = outLayer = outDataSet = None
+    print("polygion points is saved in .shp file "),outfilename
 
 def poly_ptstoshp(polypts,outfilename,save_as_multipt=False):
     epsgdic = {'nad83': 4269, 'wgs84': 4326, 'pseudoutm': 3857, 'worldmercater': 3395}
@@ -376,6 +420,9 @@ def Set_Equivalance(SQDM_DELEGATED_TO_ID, SQDM_DELEGATED_BY_ID):
 def Break_Equivalance(SQDM_DELEGATED_TO_ID, SQDM_DELEGATED_BY_ID):
     if util.EQT[SQDM_DELEGATED_BY_ID]:
         util.EQT[SQDM_DELEGATED_BY_ID] = None
+
+def merkle_root(key_val_map):
+    return hashargs('1')
 
 if __name__ == "__main__":
 
