@@ -9,7 +9,7 @@ from collections import OrderedDict
 from ast import literal_eval
 if sys.version_info < (3, 6):
     import sha3
-
+import csv
 
 #CONSTANTS
 hindexi = 0
@@ -28,6 +28,127 @@ COUNTRY_DELEGATED_BY_ID = 0.0
 extents={'dummy_usa_extent': [(1200, 600), (5200, 3000)]}
 
 EQT = {}
+def unzip_files():
+    import zipfile
+    sourcedir ="F:/US-Spatial-Data/block-level-pop-shapefiles"
+    destdir = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/census_blocks_by_states"
+    fl = os.listdir(sourcedir)
+    for f in fl[:]:
+        destdir2 = destdir + "/" + f.split(".")[0]
+        if not os.path.exists(destdir2):
+            os.mkdir(destdir2)
+            zip_ref = zipfile.ZipFile(sourcedir+"/"+f, 'r')
+            zip_ref.extractall(destdir2)
+            zip_ref.close()
+            print("Copleted extracting:"),sourcedir+"/"+f
+
+    print("Files extracted to "), destdir
+
+def load_dist_ids_by_state(dist_id_file):
+    dist_ids={}
+    with open(dist_id_file) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader:
+            dist_ids[row[0]] = 0
+
+    return dist_ids
+
+def extract_dist_ids_for_state(block_equiv_file,state_id = "28"):
+    home_cong = os.path.dirname(block_equiv_file) #"D:/workspace/sqdm-repo/sqdm/out/tmp/redist/cd116/"
+    nbeqivf=block_equiv_file #home_cong+"National_CD116.csv"
+    dist_ids={}
+
+    outfile2 = home_cong + '/dist_ids' + state_id + '.csv'
+    with open(nbeqivf) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader:
+            if row[0].startswith(state_id):
+                dist_ids[row[1]] =0
+
+    dist_ids_l =[]
+    for k in dist_ids.keys():
+        dist_ids_l += [[str(k)]]
+
+    with open(outfile2, 'wb') as writeFile:
+        writer = csv.writer(writeFile)
+        writer.writerows(dist_ids_l)
+    writeFile.close()
+    print("Dist-ids saved in "),outfile2
+
+    return dist_ids
+
+
+def extract_blk_eq_by_state(block_equiv_file, state_id = "28"):
+    home_cong = os.path.dirname(block_equiv_file) #"D:/workspace/sqdm-repo/sqdm/out/tmp/redist/cd116/"
+    nbeqivf=block_equiv_file #home_cong+"National_CD116.csv"
+    dct = {}
+    blk_dist = []
+
+    '''
+    states_code = "D:/workspace/sqdm-repo/sqdm/out/states-codes.csv"
+    import csv
+    state_id=None
+    with open(states_code) as csv_file:
+        csv_reader = csv.reader(csv_file)
+        for row in csv_reader:
+            if row[1] == state_id:
+                state_id = str(row[1])
+                break
+    if state_id is None:
+        print("Could not find state with state_abbrr"),state_abbr
+        return 0
+    '''
+
+    outfile =home_cong + '/blk_eqiv'+ state_id+ '.csv'
+    with open(nbeqivf) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader:
+            if row[0].startswith(state_id):
+                blk_dist += [row]  # ,row[1].strip("\n")]]
+                try:
+                    dct[row[0][5:11]] += [row[0]]  # census tract
+                except:
+                    dct[row[0][5:11]] = [row[0]]
+
+    with open(outfile, 'wb') as writeFile:
+        writer = csv.writer(writeFile)
+        writer.writerows(blk_dist)
+    writeFile.close()
+    print("Data saved in "),outfile
+    
+def save_data_infor_ascsv(data_info, outfile):
+    d = data_info
+    d = {'integration_type': 'blk',
+         'size_shp': 216L, "dists": {u'#blk-04': 36325,
+                                     u'#blk-02': 55366, u'#blk-03': 41500,
+                                     u'#blk-01': 38587}, 'state_id': '28'}
+
+    lst = []
+    a,b = d["state_id"], d["size_shp"]
+
+    for st, cb in d["dists"].items():
+        lst += [["","",st, cb]]
+
+    print("i"), [a,b] + lst[0][2:]
+    lst = [[a,b] + lst[0][2:]] + lst[1:]
+    for i in lst:
+        print i
+
+    with open(outfile, 'wb') as writeFile:
+        writer = csv.writer(writeFile)
+        writer.writerows(lst)
+    writeFile.close()
+
+    print("Data saved in "), outfile
+
+def get_size(start_path='.'):
+
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size/(1024)/1024
 
 def hashargs(*args):
     inp = args
@@ -199,9 +320,9 @@ def geom_toshp(newgeom,outfilename,save_as_multipt=False):
     driver = ogr.GetDriverByName('ESRI Shapefile')
     outprjref = osr.SpatialReference()
     outprjref.ImportFromEPSG(epsgdic["worldmercater"])
-
+    print("outfile"), outfilename
     if os.path.exists(outfilename):
-        #driver.DeleteDataSource(outfilename)
+        driver.DeleteDataSource(outfilename)
         pass
     outDataSet = driver.CreateDataSource(outfilename)
     if save_as_multipt:
@@ -406,12 +527,11 @@ def load_from_file(infile,typecast=[]):
     for ext in ['.json', '.pickle']:
         try:
             with open(infile + ext, 'r') as fp:
-                data = json.load(fp, object_pairs_hook=OrderedDict)
+                #data = json.load(fp, object_pairs_hook=OrderedDict)
+                data = json.load(fp)
         except Exception, e:
-            print(""), str(e)
+            print("Exception in load_from_file"), str(e)
             continue
-
-    tmp = OrderedDict()
     return data
 
 def Set_Equivalance(SQDM_DELEGATED_TO_ID, SQDM_DELEGATED_BY_ID):
@@ -447,4 +567,5 @@ if __name__ == "__main__":
     for key,value in d.items():
         e.update({key: [float(v) for v in value[0:4]] + [str(v) for v in value[4:]]  })
 
-    save(e,"aaaaaa.json")
+    #save(e,"aaaaaa.json")
+    #unzip_files()

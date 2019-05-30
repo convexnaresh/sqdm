@@ -10,6 +10,8 @@ from IO import *
 
 block_prop ={}
 state_prop={}
+timing_attr={'tAPEC_': 0, 'tISO_PERIMETRIC_IDX_': 0, 'SOL_A': 0, 'tAPEC_BY_B': 0, 'tPOPULATION_': 0, 'tMOMENT_AREA_': 0, 'tCOLL_BLKS_BY_DI': 0, 'tMOMENT_POPU_': 0, 'tEXCHG_IDX': 0, 'tPOP_HULL_RATIO_': 0, 'tROHRBACH_IDX': 0, 'tBLKS_UCASCADE_': 0, 'tAREA_HULL_RATIO_': 0, '_': 0, 'PROB_A': 0, 'tHULL_AREA_': 0, 't3R_TO_DISTCTR_': 0, 'tBLKCTR_TO_DIST_CTR_': 0, 'tDAREA_EQPC_': 0, 'tDBLKCTR_TO_DIST_PERI_': 0}
+
 apblocks={"FEAT_IDS":{}, #block-ids
           "AREA":{},
           "PERI":{},
@@ -84,7 +86,7 @@ dpmap_attr = {"dists": "dist",
 
 DEFAULT_DISTRICT_ANNOTATIONS={"01":1, "02":2, "03":3, "04":4}
 
-DEFAULT_PROBLEM_ACC = "ms.dplan.com"#, util.hashargs("ms.dplan.com")
+DEFAULT_PROBLEM_ACC = "dplan.com"#, util.hashargs("ms.dplan.com")
 
 DEFAULT_SOLUTION_ACC = "cse.dplan.com"#,util.hashargs("cse.dplan.com")
 
@@ -127,6 +129,13 @@ class DPmap(object):
         dict[dpmap_attr["closetime"]] = self.__closetime
 
         return dict
+
+    def set_dists(self,dist_ids):
+        self.__dists = dist_ids
+
+    def set_problemacc(self,prob_accid):
+        if self.__problemacc is None:
+            self.__problemacc = str(prob_accid)+"."+ DEFAULT_PROBLEM_ACC
 
     def get_dist_keys(self):
         return self.__dists.keys()
@@ -298,7 +307,8 @@ class DPmap(object):
         self.__block_to_attr_map = blk_to_attr_map
         self.__keyschainhash = self.get_keyschainhash()
         self.__nblocks = len(self.__block_to_attr_map.keys())
-        self.__problemacc = DEFAULT_PROBLEM_ACC
+        if self.__problemacc is None:
+            self.__problemacc= DEFAULT_PROBLEM_ACC
         self.__releasetime = time.time()
         self.__closetime = self.__releasetime + PLAYTIME
 
@@ -363,6 +373,9 @@ class Dplan(object):
             if block_keys:
                 return util.hashargs(block_keys)
         return self.__keyschainhash
+
+    def set_problemacc(self,problemacc):
+        self.__problemacc = problemacc
 
     def get_problemacc(self):
         return self.__problemacc
@@ -798,65 +811,110 @@ class Dplan(object):
         IO().insert_dist_metric(state_prop)
         del state_prop
 
+    def create_problem_solution_object(self,state_id="28"):
 
-    def test_metric_block_integration(self):
-        timing={}
-        state_prop = {}
+        data_info ={}
+        home_cong= "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/cd116/"
+        home_blkpop = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/census_blocks_by_states/"+"tabblock2010_"+state_id+"_pophu/"
+        ctract_shapefile = home_blkpop+"prjtabblock2010_"+state_id+"_pophu.shp"
+        blk_equivfile = home_cong+"blk_eqiv"+state_id+".csv" #with 2 cols #tract equiv file
+        dist_idsfile = home_cong+"dist_ids"+state_id+".csv" #with 2 cols #tract equiv file
+        nbeqivf = home_cong + "National_CD116.csv"
+        data_info["state_id"] = state_id
 
-        home = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/"
-        ctract_shapefile = home+"census_blocks_ms_2015/tabblock2010_28_pophu.shp"
-        blk_equivfile = "blk_eqiv28.csv" #with 2 cols #tract equiv file
         census_tract_file = False
-
         if census_tract_file:
             idfieldname  = "GEOID10"
+            dist_id_field = "STID3" #dist-id
         else:
             idfieldname="BLOCKID10"
+            dist_id_field="STID3"
 
-        prefix="blk"
-        postfix="28"
-        dplandatafile =prefix+"dplan"+postfix
-        dplanproblemfile= prefix+"dpmap"+postfix
-        dplan_block_propfile= prefix+"dpblock_prop"+postfix
+        prefix="blk" #integration-type
 
 
-        #save and get a plan
-        '''
-        dplan = Dplan()
-        dplan.build_from_blkequiv_csv(home +blk_equivfile)
-        dplan.to_json(home+dplandatafile)
-        del dplan
-        '''
+        dplanproblemfile= prefix+"dpmap"+state_id
+        dplandatafile = prefix + "dplan" + state_id
+        data_info["size_shp"] = util.get_size(os.path.dirname(ctract_shapefile))
+        data_info["dists"] ={}
 
-        dplan = Dplan()
-        dplan.load_json_dplan(home+dplandatafile)
-        IO().insert_plan(dplan)
-        timing["SOL_ACC"] =dplan.get_solacc()
-
-        DPmap().blk_feat_to_dist_mapping(ctract_shapefile, dplan.get_block_to_attr_map(), census_tract_file=False)
-
-        return 0
+        #create dist-ids for this state.
+        dist_ids = util.extract_dist_ids_for_state(nbeqivf,state_id=state_id)
 
         #save and get a dist problem
         t0 = time.clock()
         dpmap = DPmap()
+        dpmap.set_problemacc(state_id)
+        dpmap.set_dists(dist_ids) #or (util.load_dist_ids_by_state(dist_idsfile))
         dpmap.dproblem_from_shape_files(ctract_shapefile,census_tract_file=False)
-        dpmap.to_json(home+dplanproblemfile)
+        dpmap.to_json(home_blkpop+dplanproblemfile)
+        problemacc = dpmap.get_problemacc()
+        data_info["storsize_dprob"] = util.get_size(home_blkpop+dplanproblemfile+'.json')
         del dpmap
 
+        # district plan
+        util.extract_blk_eq_by_state(nbeqivf,state_id=state_id) #national block equiv file.
+
+        dplan = Dplan()
+        dplan.build_from_blkequiv_csv(blk_equivfile)
+        dplan.set_problemacc(problemacc)
+        dplan.to_json(home_cong+dplandatafile)
+        #IO().insert_plan(dplan)
+        data_info["storsize_dplan"] = util.get_size(home_cong+dplandatafile+'.json')
+        IO().insert_data_info(data_info)
+        del dplan
+
+    def test_metric_block_integration(self,state_id="28",filter_dists=[]):
+        timing={}
+        state_prop = {}
+        data_info ={}
+        home_cong= "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/cd116/"
+        home_blkpop = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/census_blocks_by_states/"+"tabblock2010_"+state_id+"_pophu/"
+        ctract_shapefile = home_blkpop+"prjtabblock2010_"+state_id+"_pophu.shp"
+        blk_equivfile = home_cong+"blk_eqiv"+state_id+".csv" #with 2 cols #tract equiv file
+        dist_idsfile = home_cong+"dist_ids"+state_id+".csv" #with 2 cols #tract equiv file
+
+        census_tract_file = False
+        if census_tract_file:
+            idfieldname  = "GEOID10"
+            dist_id_field = "STID3" #dist-id
+        else:
+            idfieldname="BLOCKID10"
+            dist_id_field="STID3"
+
+        prefix="blk" #integration-type
+
+        dplandatafile =prefix+"dplan"+state_id
+        dplanproblemfile= prefix+"dpmap"+state_id
+        dplan_block_propfile= prefix+"dpblock_prop"+state_id
+        data_info["size_shp"] = util.get_size(os.path.dirname(ctract_shapefile))
+        data_info["dists"] ={}
+
+        #get a dist problem
+        t0 = time.clock()
         dpmap = DPmap()
-        dpmap.load_json_dprob(home + dplanproblemfile)
+        dpmap.load_json_dprob(home_blkpop + dplanproblemfile)
         timing["tAPEC_BY_BLK"] = round(time.clock() - t0,6)
         timing["PROB_ACC"] = dpmap.get_problemacc()
+
+        #get a plan
+        dplan = Dplan()
+        dplan.load_json_dplan(home_cong+dplandatafile)
+        timing["SOL_ACC"] =dplan.get_solacc()
 
         #for which prob, which solution
         state_prop["PROB_ACC"] = dpmap.get_problemacc()
         state_prop["SOL_ACC"] = dplan.get_solacc()
-        state_prop["DIST_KEYS"] = dpmap.get_dist_keys()
+        state_prop["DIST_KEYS"] = sorted(dpmap.get_dist_keys())
+
+        #filter by district ids.
+        for k in filter_dists:
+            try:state_prop["DIST_KEYS"].remove(k)
+            except:
+                continue
 
         # fill up block's prop.
         block_prop = dpmap.get_block_to_attr_map() #transient properties
-        #util.save(block_prop, home +dplan_block_propfile)
         #IO().insert_block_prop(dpmap) #TODO: isssue with unicode keys in dict
         del dpmap
 
@@ -872,7 +930,6 @@ class Dplan(object):
             except:
                 districts_blocks[distid] = [ctractkey]
 
-        del dplan
         timing["tCOLL_BLKS_BY_DIST"] = round(time.clock() - t0,6)
         print "tCOLL_BLKS_BY_DIST",timing["tCOLL_BLKS_BY_DIST"]
         ###
@@ -880,68 +937,69 @@ class Dplan(object):
         #Validate:
         ##dist_keys in plan must be in problem-maps's dist keys.
         ##all of the input blocks must be mapped to one of the district.
+        print("# of Districts :"),len(state_prop["DIST_KEYS"])
+        for distkey  in state_prop["DIST_KEYS"]:
 
-        for distkey  in sorted(state_prop["DIST_KEYS"])[:]:
             t0 = time.clock()
             state_prop[distkey] ={}
-            ctractkeys = districts_blocks[distkey][:]
-            print("# of blocks in this dist:"),len(ctractkeys)
+            print("# of blocks in this dist:"),distkey, len(districts_blocks[distkey])
             udist_geom = ogr.Geometry(ogr.wkbMultiPolygon)
-
+            cd_container = {distkey:udist_geom}
             #get each block's shape to create a district's map.
+
             fcount = 0
             shapef = ogr.Open(ctract_shapefile)
             layer = shapef.GetLayer()
             #
+            t0 = time.clock()
+            t2 = time.time()
             for feature in layer:
                 bkey = util.hash_cblocks_dist([feature.GetField(idfieldname)])
                 blkgeo = feature.GetGeometryRef()
-                if bkey in ctractkeys:
-                    if blkgeo.GetGeometryName() == "LINEARRING":
-                        print("\t-.-"), "linearring"
-                        poly = ogr.Geometry(ogr.wkbPolygon)
-                        poly.AddGeometry(blkgeo)
-
-                    if blkgeo.GetGeometryName() == 'MULTIPOLYGON':
-                        print("\t-.-"), "multipolygon"
-                        for geom in blkgeo:
-                            udist_geom.AddGeometry(geom)
-
-                    elif blkgeo.GetGeometryName() == 'POLYGON':
-                        udist_geom.AddGeometry(blkgeo)
-                        udist_geom= udist_geom.UnionCascaded(blkgeo)
-                    else:
-                        print("\t\t-.-"),blkgeo.GetGeometryName()
-                        udist_geom.AddGeometry(blkgeo)
+                #distid = feature.GetField(dist_id_field) #or
+                distid = dplan.get_block_to_attr_map()[bkey][1]
+                try:
+                    cd_container[distid].AddGeometry(blkgeo)
+                except:
+                    continue
 
             #end-for
             layer = None
+            print("time:"), time.clock() -t0, time.time()-t2
+            print("-udist_geom count-"), udist_geom.GetGeometryCount()
 
             #take union of blocks.
-            print("--"),udist_geom.GetGeometryName(), udist_geom.GetGeometryCount(), fcount
-            udist_geom = udist_geom.UnionCascaded()
-            count = 0
-            #for each ring geom
-            for geom in udist_geom:
-                print("\t"),count,geom.GetGeometryName()
-                if geom.GetGeometryName() == 'LINEARRING':
-                    state_prop[distkey]["BOUNDARY_PTS"] =geom.GetPoints()
-                    #poly = ogr.Geometry(ogr.wkbPolygon)
-                    #poly.AddGeometry(geom)
-                    #util.geom_toshp(poly, home + "dists/st-" + str(distkey) + "-" + str(count), save_as_multipt=False)
-                else:
-                    #util.geom_toshp(geom,home + "dists/st-"+str(distkey)+"-"+str(count), save_as_multipt=False)
-                    pass
-                count +=1
-            print("Completed union of blks for a district")
-            timing["tUNION_CASCADE_BLOCKS_BY_DIST_"+str(distkey)] = round(time.clock() - t0,6)
+            t0 = time.clock()
+            udist_geomc = udist_geom.UnionCascaded()
+            timing["tBLKS_UCASCADE_" + str(distkey)] = round(time.clock() - t0, 6)
 
-        util.save(state_prop, home + "temp_distprop28-")
-        print("Completed all district construction")
+            count = 0
+            #for each ring geom, search for a largest ring.
+            for geom in udist_geomc:
+                if geom.GetGeometryName() == 'LINEARRING':
+                    state_prop[distkey]["BOUNDARY_PTS"] = geom.GetPoints()
+                    poly = ogr.Geometry(ogr.wkbPolygon)
+                    poly.AddGeometry(geom)
+                    util.geom_toshp(poly, home_cong + "dists/"+str(state_id)+"-"+"dist-" + str(distkey) + "-" + str(count), save_as_multipt=False)
+                    break
+                elif geom.GetGeometryName() == "POLYGON":
+                    for geo in geom:
+                        state_prop[distkey]["BOUNDARY_PTS"] = geo.GetPoints()
+                        poly = ogr.Geometry(ogr.wkbPolygon)
+                        poly.AddGeometry(geo)
+                        util.geom_toshp(poly,home_cong + "dists/" + str(state_id) + "-" + "dist-" + str(distkey) + "-" + str(count), save_as_multipt=False)
+                        break
+                count += 1
+            print("\t\t dist-boundary completed"),len(state_prop[distkey]["BOUNDARY_PTS"])
+            #TODO: cascadedunion of these linearring must be performed.
+        ##
+        #util.save(state_prop, home_blkpop + "temp_distprop28-")
+        print("Completed block integration to construct a district")
 
         #compute state's APEC properties
         t0 = time.clock()
-        for distkey in state_prop["DIST_KEYS"]:
+        for distkey in state_prop["DIST_KEYS"][:]:
+
             polypts = state_prop[distkey]["BOUNDARY_PTS"]
             poly = ogr.Geometry(ogr.wkbPolygon)
             ring = ogr.Geometry(ogr.wkbLinearRing)
@@ -954,109 +1012,266 @@ class Dplan(object):
             state_prop[distkey]["PERI"] = poly.GetBoundary().Length()
             state_prop[distkey]["ENV"] = poly.GetEnvelope()
             state_prop[distkey]["CENTROID"] = poly.Centroid().GetPoints()[0]
-            timing["tAPEC_BY_DIST"+str(distkey)] = round(time.clock() - t0,6)
+            timing["tAPEC_"+str(distkey)] = round(time.clock() - t0,6)
+            state_prop[distkey]["FAILED"] =[]
+            print("Completed APEC for district "),distkey
 
         #for each block in district, update block's properties relative to comprising district.
-        for distkey in state_prop["DIST_KEYS"]:
+        for distkey in state_prop["DIST_KEYS"][:]:
             st_centroid=state_prop[distkey]["CENTROID"]
+            data_info["dists"]["#"+prefix+"-"+distkey]=len(districts_blocks[distkey])
+            t0 = time.clock()
+            try:
+                Metri.bctr_to_dctr(st_centroid,districts_blocks[distkey],block_prop)
+                timing["tBLKCTR_TO_DIST_CTR_"+distkey] = round(time.clock() - t0,6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] = ["BLKCTR_TO_DIST_CTR_"]
+                print("Exception:"), str(e)
+            print("1")
 
             t0 = time.clock()
-            Metri.bctr_to_dctr(st_centroid,districts_blocks[distkey],block_prop)
-            timing["tBLKCTR_TO_DIST_CTR_"+distkey] = round(time.clock() - t0,6)
-
-            t0 = time.clock()
-            Metri.blkctr_to_dist_peri(state_prop[distkey]["BOUNDARY_PTS"],
-                                      districts_blocks[distkey],
-                                      block_prop)
-            timing["tDBLKCTR_TO_DIST_PERI_"+distkey] = round(time.clock() - t0,6)
+            try:
+                Metri.blkctr_to_dist_peri_np(state_prop[distkey]["BOUNDARY_PTS"],districts_blocks[distkey],block_prop)
+                timing["tDBLKCTR_TO_DIST_PERI_"+distkey] = round(time.clock() - t0,6)
+                pass
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["DBLKCTR_TO_DIST_PERI_"]
+                print("Exception--"), str(e)
+            print timing["tDBLKCTR_TO_DIST_PERI_" + distkey]
+            print("2")
 
             t0 = time.clock()
             #compute distr population
             state_prop[distkey]["POPULATION"]=Metri.dist_population(districts_blocks[distkey], block_prop)
             timing["tPOPULATION_" + distkey] = round(time.clock() - t0,6)
-
+            print("3")
 
             t0 = time.clock()
             # moments for district
-            Ia = Metri.moment_area(districts_blocks[distkey],block_prop)
-            state_prop[distkey]["MOMENT_AREA"] = Ia
-            timing["tMOMENT_AREA_" + distkey] = round(time.clock() - t0,6)
+            try:
+                Ia = Metri.moment_area(districts_blocks[distkey],block_prop)
+                state_prop[distkey]["MOMENT_AREA"] = Ia
+                timing["tMOMENT_AREA_" + distkey] = round(time.clock() - t0,6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["MOMENT_AREA"]
+                print("Exception"), str(e)
+
+            print("4")
+
 
             t0 = time.clock()
-            Ip = Metri.moment_popu(districts_blocks[distkey],block_prop)
-            state_prop[distkey]["MOMENT_POPU"] = Ip
-            timing["tMOMENT_POPU_" + distkey] = round(time.clock() - t0,6)
+            try:
+                Ip = Metri.moment_popu(districts_blocks[distkey],block_prop)
+                state_prop[distkey]["MOMENT_POPU"] = Ip
+                timing["tMOMENT_POPU_" + distkey] = round(time.clock() - t0,6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["MOMENT_POPU"]
+                print("Exception"), str(e)
+
+            print("5")
 
             t0 = time.clock()
             # ISO-perimetric ratio A/P
-            Metri.dpolsby_popper2(distkey,state_prop)
-            timing["tISO_PERIMETRIC_IDX_" + distkey] = round(time.clock() - t0,6)
+            try:
+                Metri.dpolsby_popper2(distkey,state_prop)
+                timing["tISO_PERIMETRIC_IDX_" + distkey] = round(time.clock() - t0,6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["ISO_PERIMETRIC_IDX_"]
+                print("Exception"), str(e)
+
+            print("6")
 
             t0 = time.clock()
             # Equal-perimeter-circle
             Metri.darea_by_ac_eqpd2(distkey,state_prop)
             timing["tDAREA_EQPC_" + distkey] = round(time.clock() - t0,6)
 
-            t0 = time.clock()
             # Mean block-ctrroid-to-district-centroid
-            state_prop[distkey]["MEAN_RADIUS_TO_DISTCTR"] = Metri.mean_radius_to_distctr(districts_blocks[distkey],
-                                                                                  block_prop)
-            state_prop[distkey]["DYN_RADIUS_TO_DISTCTR"]= Metri.dynamic_radius_to_distctr(districts_blocks[distkey],
-                                                                                    block_prop)
-            state_prop[distkey]["HRM_RADIUS_TO_DISTCTR"] = Metri.harmonic_radius_to_distctr(districts_blocks[distkey],
-                                                                                    block_prop)
-            timing["t3R_TO_DISTCTR_" + distkey] = round(time.clock() - t0,6)
-
             t0 = time.clock()
+            try:
+                state_prop[distkey]["MEAN_RADIUS_TO_DISTCTR"] = Metri.mean_radius_to_distctr(districts_blocks[distkey],
+                                                                        block_prop)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["MEAN_RADIUS_TO_DISTCTR"]
+                print("Exception"), str(e)
+            print("7")
+            try:
+                state_prop[distkey]["DYN_RADIUS_TO_DISTCTR"]= Metri.dynamic_radius_to_distctr(districts_blocks[distkey],
+                                                                                    block_prop)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["DYN_RADIUS_TO_DISTCTR"]
+                print("Exception"), str(e)
+            print("8")
+            try:
+                state_prop[distkey]["HRM_RADIUS_TO_DISTCTR"] = Metri.harmonic_radius_to_distctr(districts_blocks[distkey],
+                                                                                    block_prop)
+                timing["t3R_TO_DISTCTR_" + distkey] = round(time.clock() - t0, 6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["HRM_RADIUS_TO_DISTCTR"]
+                print("Exception"), str(e)
+            print("9")
+
             # Interpersonal-distance
-            state_prop[distkey]["INTERPERSONAL_DIST"] = Metri.interpersonal_distance(districts_blocks[distkey],
-                                                                                     block_prop)
-            timing["tINTERPERSONAL_DIST_" + distkey] = round(time.clock() - t0,6)
+            t0 = time.clock()
+            try:
+                #state_prop[distkey]["INTERPERSONAL_DIST"] = Metri.interpersonal_distance(districts_blocks[distkey],
+                                                                            # block_prop)
+                #timing["tINTERPERSONAL_DIST_" + distkey] = round(time.clock() - t0,6)
+                pass
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["INTERPERSONAL_DIST"]
+                print("Exception"), str(e)
+            print("10")
 
             t0 = time.clock()
             # HULL
             state_hull = Metri.get_convexhull(state_prop[distkey]["BOUNDARY_PTS"])
             state_prop[distkey]["HULL_AREA"]= state_hull.GetArea()
             timing["tHULL_AREA_" + distkey] = round(time.clock() - t0,6)
+            print("11")
 
             t0 = time.clock()
-
-            state_prop[distkey]["AREA_HULL_RATIO"] = Metri.convex_hull_area_ratio(distkey,
+            try:
+                state_prop[distkey]["AREA_HULL_RATIO"] = Metri.convex_hull_area_ratio(distkey,
                                                                                   state_prop)
-            timing["tAREA_HULL_RATIO_" + distkey] = round(time.clock() - t0,6)
+                timing["tAREA_HULL_RATIO_" + distkey] = round(time.clock() - t0, 6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["AREA_HULL_RATIO"]
+                print(str(e))
 
             t0 = time.clock()
-            state_prop[distkey]["POP_HULL_RATIO"]= Metri.population_polygon(state_hull,
+            try:
+                state_prop[distkey]["POP_HULL_RATIO"]= Metri.population_polygon(state_hull,
                                                                             state_prop[distkey]["POPULATION"],
                                                                             districts_blocks[distkey],
                                                                             block_prop)
+                timing["tPOP_HULL_RATIO_" + distkey] = round(time.clock() - t0, 6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["POP_HULL_RATIO"]
+                print("Exception"), str(e)
+            print("13")
 
-            timing["tPOP_HULL_RATIO_" + distkey] = round(time.clock() - t0,6)
-
-            t0 = time.clock()
-            # Exchange-idx
-            eqarea_circle = Metri.comp_equal_area_circle(state_prop[distkey]["AREA"], state_prop[distkey]["CENTROID"], None)
-            overlap_area_eqcircle = Metri.overlaping_area(eqarea_circle, state_prop[distkey]["BOUNDARY_PTS"])
-            state_prop[distkey]["OVERLAP_AREA_EQCIRCLE"] = overlap_area_eqcircle
-            state_prop[distkey]["EXCHG_IDX"] = Metri.exchange_index(distkey,state_prop)
-            timing["tEXCHG_IDX" + distkey] = round(time.clock() - t0,6)
 
             t0 = time.clock()
-            # Rohrbach-index
-            state_prop[distkey]["ROHRBACH_IDX"]= Metri.rohrbach_index(districts_blocks[distkey], block_prop)
-            timing["tROHRBACH_IDX" + distkey] = round(time.clock() - t0,6)
+            try:
+                #Exchange-idx
+                eqarea_circle = Metri.comp_equal_area_circle(state_prop[distkey]["AREA"], state_prop[distkey]["CENTROID"], None)
+                overlap_area_eqcircle = Metri.overlaping_area(eqarea_circle, state_prop[distkey]["BOUNDARY_PTS"])
+                state_prop[distkey]["OVERLAP_AREA_EQCIRCLE"] = overlap_area_eqcircle
+                state_prop[distkey]["EXCHG_IDX"] = Metri.exchange_index(distkey,state_prop)
+                timing["tEXCHG_IDX_" + distkey] = round(time.clock() - t0, 6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["EXCHG_IDX"]
+                print("Exception"), str(e)
+            print("14")
 
             t0 = time.clock()
+            try:
+                #Rohrbach-index
+                state_prop[distkey]["ROHRBACH_IDX"]= Metri.rohrbach_index(districts_blocks[distkey], block_prop)
+                timing["tROHRBACH_IDX_" + distkey] = round(time.clock() - t0, 6)
+            except Exception, e:
+                state_prop[distkey]["FAILED"] += ["ROHRBACH_IDX"]
+                print("Exception"), str(e)
+
+            print("15")
             print("Completed prop for "), distkey
         #update
 
         IO().insert_timings(timing)
         del timing
         IO().insert_dist_metric(state_prop)
-        del state_prop
+        #del state_prop
+        data_info["integration_type"] = prefix
+        data_info["state_id"] = state_id
+        IO().insert_data_info(data_info)
+        print("Completed Metric for State:"),state_id
+        print
+        print
 
-#Dplan().test_metric_ctract_integration()
-Dplan().test_metric_block_integration()
+import csv
+states_code = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/states-codes.csv"
+completed_states="D:/workspace/sqdm-repo/sqdm/out/tmp/redist/completed_states.csv"
+
+state_dic ={}
+with open(states_code) as csv_file:
+    csv_reader = csv.reader(csv_file)
+    for row in csv_reader:
+        state_dic[str(row[1])] = [row[0],row[2]]
+
+
+
+filter_states ={"00":'memory error'}
+for stid in filter_states.keys():
+    try:
+        state_dic.pop(stid) #del state_dic[stid]
+    except:
+        continue
+
+
+
+#load record for completed states.
+completed_dic ={}
+with open(completed_states) as csv_file:
+    csv_reader = csv.reader(csv_file)
+    for row in csv_reader:
+        completed_dic[str(row[0])] = row[1:]
+
+print("Cd"), completed_dic
+'''
+#do for ms and al
+for state_id in sorted(state_dic.keys()):
+    #create problem
+    #create solution
+    if state_id not in completed_dic:
+        print("state-id"), state_id
+        try:
+            Dplan().create_problem_solution_object(state_id=state_id)
+            blk_dist =[[state_id,"P","S"]]
+            with open(completed_states, 'ab') as writeFile:
+                writer = csv.writer(writeFile)
+                writer.writerows(blk_dist)
+            writeFile.close()
+        except Exception, e:
+            print("Exception "),str(e), state_id
+'''
+
+f = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/census_blocks_by_states/tabblock2010_06_pophu/blkdpmap06.json"
+import json
+from collections import OrderedDict
+import json
+
+print("Calculating Metric")
+#metric computation for states
+for state_id in sorted(state_dic.keys()):
+    #metric computation
+    if state_id in completed_dic and len(completed_dic[state_id])<3:
+        print("state-id"), state_id,state_dic[state_id]
+        try:
+            if state_id == "06":
+                filter_dists = ["01"]
+            else:
+                filter_dists = ["ZZ"]
+
+            Dplan().test_metric_block_integration(state_id=state_id,filter_dists=filter_dists)
+            blk_dist =[[state_id,"P","S","M"]]
+            with open(completed_states, 'ab') as writeFile:
+                writer = csv.writer(writeFile)
+                writer.writerows(blk_dist)
+            writeFile.close()
+        except Exception, e:
+            print("Exception "),str(e), state_id
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,3 +1,6 @@
+
+=============================Delegation Algorithm=============================================
+
 Algorithm: Sqdm
 Input: P, AV, OWNER_ID 
 	#P: set of segments in counter-clockwise direction forming non-intersected polygon.
@@ -47,7 +50,7 @@ Return: Psqdm with embeded C in it, which is owned by DELEGATED_TO
 		8.2. BREAK_ADDR_EQUIVALANCE( OWNER_ID, DELEGATED_TO)
 		8.2. RELEASE_LOCK_SQDM(C.MinX, C.MaxX)
 
-		
+
 Execution Log.
 
  [Errno 2] No such file or directory: '../out/tmp/2USAs.pickle'
@@ -62,3 +65,100 @@ length(fitable-segments in Cpoly) 39285
 json data saved in  ../out/tmp/Pslicesegs.json
 json data saved in  ../out/tmp/Pslicesqdm.json
 json data saved in  ../out/tmp/ftCsegs.json
+
+
+=============================Redistricting Protocol Algorithm=============================================
+
+NETWORK-INITIALIZATION
+GENESIS = 0
+1. REDPRO_CHAIN <- BCHAIN(GENESIS) #block-chain for problem
+2. METRIC_CHAIN <- BCHAIN(GENESIS)
+
+Algorithm: ConstructReDistrictingProblem
+Input: REDPRO = <bid,geom-ref, cblock_properties> + MetaData(Problem A/C)
+	   DISTRICTS_REQD = <did,info> + number-of-dists
+Output: Signed DPRO
+
+1. REDPRO.HEADER = hredpro <-AccumulatedHash(REDPRO), Aredpro <- REDPRO-A/C, exptime <- ExpireTimeStamp, dist_reqd <- AccHash(DISTRICTS_REQD)
+2. sig = SIGN(Aredpro, REDPRO.HEADER)
+3. REDPRO_CHAIN.LEDGER_ENTRY(DPRO.HEADER, sig)
+4.
+
+
+Algorithm: ConstructDistrictingPlan
+Input: DP = <bid,did> + MetaData(SolA/C, Problem A/C)
+Output: Signed DP
+1. DPTxn = SIGN(hdp <- AccumulatedHash(DP), tdp <-TimeStamp, SolAcc <-SolA/C, ProAcc <-Problem A/C), DP
+2. BroadCast(DPTxn)
+
+
+Algorithm: DPLAN_VALIDATION
+Input: DPTxn,REDPRO_CHAIN, ACCOUNTS
+Output: Bool
+0. REDPRO.HEADER <- REDPRO_CHAIN.SEEK(DPTxn.ProAcc) #seek a header for redistricting problem in the chain.
+   REDPRO <- REDPRO_CHAIN.FETCH_REDPRO(REDPRO.HEADER.hredpro) (a reference to map <bid,geom-ref>
+   DISTS_REQD <- REDPRO_CHAIN.FETCH_REQDDISTS(REDPRO.HEADER.dist_reqd)
+1. COND1 = DPTxn.tdp <= REDPRO.HEADER.exptime
+2. COND2 = DPTxn.SolAcc IN ACCOUNTS and DPTxn.ProAcc IN ACCOUNTS
+3. COND3 = Each bid IN DPTxn.DP IN REDPRO #all census-blocks must be assigned a district
+4. COND4 = Each did IN DPTxn.DP IN DISTS_REQD #districts must be same.
+5. COND5 = DPTxn must not be processed before (AvoidDoubleSpending) ?
+
+6. Return PI(COND1, COND2, COND3, COND4,COND5) # all condition must be TRUE.
+
+
+Algorithm: MetricsEvaluation
+Input: DP, REDPRO
+	DP = <bid,did> + MetaData
+	REDPRO = <bid,geom-ref,cblock_properties> + MetaData
+	Block_PRO <bid,Area,Peri,Centroid,ENV> = REDPRO.cblock_properties
+Output: Metrics M, Timings T
+
+1. Map each census-block/cencus-tract in shapefile to a district-id in a districting plan.
+	DPm = <bid,did,geom-ref> # bid mapped to did
+2.
+3. D_PTS<did, BOUNDARY_PTS> = ConstructDistrictBoundary(DPm)
+	-For each did in DPm.Districts:
+		-Collect blocks in DPm assigned to this district.
+		-BOUNDARY_PTS = TakeUnionCascaded-to-Construct-District
+		BOUNDARY_PTS ->[LIST-OF-POINTS-FOR-THE-DISTRICT did]
+
+4. Mi<did,<A=0,P=0,C=0,ENV=0>> = Compute-Initial-Metrics(D_PTS)
+	- For each did in D_PTS:
+		Mi<did,<Area,Peri,Centroid,ENV>> = im ComputeMetrics(D_PTS<did, BOUNDARY_PTS>)
+
+5. Compute-Major-Metrics
+	Input: Mi, D_PTS, Block_PRO
+	Output: Mj<did,<m1,m2,m3,m..>
+	- For each did in D_PTS:
+		Mj<did,<m1,m2,m3..>> = mjComputeMetrics(D_PTS<did, BOUNDARY_PTS>,Block_PRO)
+
+	Mij = Merge(Mi, Mj)
+
+6. METRIC_CHAIN.HEADER = AccumulatedHash(Mij), DP.MetaData.SolAcc, REDPRO.MetaData.ProAcc
+	METRIC_CHAIN.LEDGER_ENTRY(METRIC_BLOCK_HEADER)
+
+7. Communicate Mij to Peers in Blockchain
+	-Peers only accept Mij if M is Valid
+	-Mij is added to Metric-Chain
+
+
+
+census-tract level metrics
+1a. volume of input data
+1. For each state, output data volume
+2. For each state, time for computation of metrics
+3. Database model
+4. Verification, Pre-condition Post Condition etc.
+
+
+census-block-level metrics
+1. For each state, output data volume
+2. For each state, time for computation of metrics
+
+BLK-LEVEL
+state:MS
+Size_ShapeFile:215MB
+#Blocks:171779
+Dist1:01
+#blocks:38587

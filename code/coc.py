@@ -2,29 +2,21 @@
 '''Data Source:
 http://guides.lib.purdue.edu/c.php?g=353290&p=2378621#Mississippi
 '''
-import itertools
-from osgeo import ogr
-import shapely
-import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt 
-import math
-import time
-import pickle
-import numpy as np
-import sys
-import time
-import numpy        
-import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt 
+
 import os
-from descartes import PolygonPatch
-from  osgeo import ogr, osr
-#%matplotlib inline  
+from osgeo import ogr, osr
+
 # Import the necessary modules
-epsgdic = {'nad83':4269,'wgs84':4326,'pseudoutm':3857,'worldmercater':3395}
-home =r'/home/naresh-1/workspace/machinelrn/data/gis/'
-srcshpfile = home + r'uscounties/cb_2016_us_county_500k.shp'
-outputShapefile = home+ r'out/uscounties.shp'
+epsgdic = {'nad83':4269,'wgs84':4326,'pseudoutm':3857,'worldmercater':3395,'wgs84':42310}
+#home =r'/home/naresh-1/workspace/machinelrn/data/gis/' in linux
+home = "D:/workspace/sqdm-repo/sqdm/"
+#srcshpfile = home + r'uscounties/cb_2016_us_county_500k.shp'
+#outputShapefile = home+ r'out/uscounties.shp'
+
+home ="D:/workspace/sqdm-repo/sqdm/out/tmp/redist/census_blocks_by_states/tabblock2010_30_pophu/"
+srcshpfile = home + r'tabblock2010_30_pophu.shp'
+outputShapefile = home+ r'prjtabblock2010_30_pophu.shp'
+
 
 driver = ogr.GetDriverByName('ESRI Shapefile')
 shp = driver.Open(srcshpfile)
@@ -39,11 +31,11 @@ outprjrefwm = osr.SpatialReference()
 if sourceSpatialRef.IsProjected:
     datum=sourceSpatialRef.GetAttrValue('GEOGCS|DATUM')
     if 'North_American_Datum_1983' in datum:
-	print("Geogcs/datum")
+        print("Geogcs/datum")
         #outgcsref.ImportFromEPSG(epsgdic['nad83']) #NAD83 --> WGS84/4326
         #outgcsref2.ImportFromEPSG(epsgdic['wgs84']) #NAD83 --> WGS84/4326
         #outprjref.ImportFromEPSG(epsgdic['pseudoutm']) #sthGcs -->Proj/3857,also see 3395(v. imp)
-	outprjrefwm.ImportFromEPSG(epsgdic['worldmercater'])
+    outprjrefwm.ImportFromEPSG(epsgdic['wgs84'])
 transform= osr.CoordinateTransformation(sourceSpatialRef,outprjrefwm)
 print(transform.TransformPoint(-92.355389,41.509646))
 print(outprjrefwm)

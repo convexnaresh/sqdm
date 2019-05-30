@@ -2,7 +2,9 @@
 import math
 import ogr
 PI = math.pi
-
+import numpy as np
+import random
+import copy
 class Metri:
 
     def __init__(self):
@@ -171,6 +173,7 @@ class Metri:
         :return:
         '''
         for block_id in block_keys:
+
             d=Metri.distance_sq(st_centroid,block_prop[block_id]["CENTROID"])
             if d == None:
                 print type(block_prop[block_id]["CENTROID"])
@@ -191,6 +194,28 @@ class Metri:
                     len_blk_to_peri = dp
 
             refblock_prop[blockid]["BLKCTR_TO_DIST_PERI"] = len_blk_to_peri
+
+
+    @classmethod
+    def blkctr_to_dist_peri_np(self,district_poly_pts,building_block_keys,refblock_prop):
+        # distances-to-perimeter
+        N = 10*len(district_poly_pts)/100 #10 percent of data pts
+
+        dp = copy.deepcopy(district_poly_pts)
+        random.shuffle(dp)
+        for blockid in building_block_keys:
+            len_blk_to_peri = 0
+            arb = np.asarray(dp[0:N])
+            x2, y2 = refblock_prop[blockid]["CENTROID"]
+            arc = np.asarray([(x2,y2)]* arb.shape[0])
+            del2 = (arc - arb)**2  #sq diff
+            del2 = del2.sum(axis=0) #sum
+            len_blk_to_peri = min(del2)
+            refblock_prop[blockid]["BLKCTR_TO_DIST_PERI"] = len_blk_to_peri
+            del arb
+            del arc
+            del del2
+
 
     @classmethod
     def dist_population(self,building_block_keys,refblock_prop):
@@ -247,8 +272,10 @@ class Metri:
             dpda += block_prop[blockid]["AREA"] * block_prop[blockid]["BLKCTR_TO_DIST_PERI"]
             A +=block_prop[blockid]["AREA"]
 
-        R3 = pow(math.sqrt(A/float(PI)),3) #radius whose area is A
-
+        try:
+            R3 = pow(math.sqrt(A/float(PI)),3) #radius whose area is A
+        except Exception, e:
+            print(""),str(e)
         return dpda/float(PI * R3 * 3)
 
     @classmethod

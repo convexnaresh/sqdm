@@ -557,7 +557,7 @@ with open(homef) as csv_file:
 print("0000000000000000")
 print len(ctrd)
 '''
-
+'''
 from osgeo import ogr
 shp = "D:/workspace/sqdm-repo/sqdm/uscounties/cb_2016_us_county_500k.shp"
 import os
@@ -574,6 +574,7 @@ for featid in xrange(inlyr.GetFeatureCount()):
     feat.SetField(lyr_defn.GetFieldDefn(9).GetNameRef(), 99)  # polygon id 99
 
 '''
+'''
 import geopandas as gp
 
 file = gp.read_file('shp')
@@ -581,3 +582,19 @@ list = [stuff, stuff, stuff]
 file['new_field_name'] = list
 file.to_file(shp)
 '''
+print("============")
+home = "D:/workspace/sqdm-repo/sqdm/out/tmp/redist/"
+ctract_shapefile = home + "census_blocks_ms_2015/tabblock2010_28_pophu.shp"
+print util.get_size(start_path=home+"census_blocks_ms_2015")
+
+import shutil
+import urllib2
+from contextlib import closing
+fl="ftp://ftp2.census.gov/geo/tiger/TIGER2010BLKPOPHU/"
+filename = "tabblock2010_06_pophu.zip"
+with closing(urllib2.urlopen(fl)) as r:
+    with open('tabblock2010_06_pophu.zip', 'wb') as f:
+        shutil.copyfileobj(r, f)
+
+handle = open(fl.rstrip("/") + "/" + filename.lstrip("/"), 'wb')
+ftp.retrbinary('RETR %s' % filename, handle.write)
